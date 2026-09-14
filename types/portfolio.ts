@@ -1,0 +1,1 @@
+export interface PortfolioPosition { mint: string; symbol: string; tokenAmount: bigint; uiAmount: number; price: number; valueUsd: number; currentWeightBps: number; targetWeightBps: number; driftBps: number; }
