@@ -51,7 +51,7 @@ Unit tests cover allocation precision, amount validation, token safety, missing 
 
 **Mainnet only.** Jupiter swaps use mainnet. Configure a mainnet RPC and use a Solana mainnet wallet. The application never handles private keys.
 
-Basket purchasing remains gated on verifying one real mainnet swap. No custom baskets, rebalancing, or portfolio tracking is implemented. Estimates assume 1 USDC ≈ $1 and use current Jupiter USD prices; they exclude slippage, fees and issuer-specific token-to-share ratios. Prices may be missing and require manual refresh. Tokenized equities involve issuer and market risk. An ambiguous symbol stays unavailable until its canonical mint is independently confirmed. Rate limits and wallet/RPC availability can prevent live data loading.
+Basket purchasing remains gated on verifying one real mainnet swap. No custom baskets, historical P&L, cost basis, or automated scheduling is implemented. Day 3 adds current holdings and wallet-approved rebalancing at `/portfolio`. Estimates assume 1 USDC ≈ $1 and use current Jupiter USD prices; they exclude slippage, fees and issuer-specific token-to-share ratios. Prices may be missing and require manual refresh. Tokenized equities involve issuer and market risk. An ambiguous symbol stays unavailable until its canonical mint is independently confirmed. Rate limits and wallet/RPC availability can prevent live data loading.
 
 ## Day 2: first mainnet swap
 
@@ -61,9 +61,9 @@ Basket purchasing remains gated on verifying one real mainnet swap. No custom ba
 4. Wait for **Completed**, then inspect the Solscan link. A signature alone is not success: Jupiter must return `status: Success` and `code: 0`.
 5. Share the resulting signature for mainnet verification before basket orchestration is built.
 
-`GET /api/jupiter/order` validates mints, positive u64 atomic amount and taker, restricts purchases to USDC and an unambiguous verified registry stock, and calls only `GET https://api.jup.ag/swap/v2/order`. Orders are never cached. Slippage and priority fees are left to Jupiter.
+`GET /api/jupiter/order` validates mints, positive u64 atomic amount and taker, restricts pairs to mainnet USDC ↔ an unambiguous verified registry stock, and calls only `GET https://api.jup.ag/swap/v2/order`. Orders are never cached. Slippage and priority fees are left to Jupiter.
 
-`POST /api/jupiter/execute` accepts a size-bounded JSON body containing the partially signed base64 transaction and requestId. It calls only `POST https://api.jup.ag/swap/v2/execute`. The key remains server-only. `lib/execution/leg.ts` decodes/encodes with Kit and calls the Wallet Standard transaction signer without sending from the wallet. It preserves other required signer slots and existing signatures, rejects changed message bytes, checks the original wallet, USDC balance, mainnet RPC and quote validity, and waits for Jupiter's execution result.
+`POST /api/jupiter/execute` accepts a size-bounded JSON body containing the partially signed base64 transaction and requestId. It calls only `POST https://api.jup.ag/swap/v2/execute`. The key remains server-only. `lib/execution/leg.ts` decodes/encodes with Kit and calls the Wallet Standard transaction signer without sending from the wallet. It preserves other required signer slots and existing signatures, rejects changed message bytes, checks the original wallet, input-token balance, mainnet RPC and quote validity, and waits for Jupiter's execution result.
 
 Definite failures can be retried via **Review fresh quote**, with a new order and requestId. An uncertain execution blocks new purchases: **Check execution** resubmits the same signed transaction to reconcile its outcome. Keep the page open while executing or reconciling. State is memory-only; after a reload, check wallet history before buying again. No private keys, signed transactions, orders, prices or balances are stored persistently.
 
@@ -72,3 +72,26 @@ Current gate: no real wallet signature or confirmed swap has yet been verified i
 Official flow: [Jupiter Swap V2 order and execute](https://developers.jup.ag/docs/swap/order-and-execute).
 
 This project is a hackathon demo and does not constitute investment advice.
+
+
+## Day 3: holdings and rebalance
+
+Open `/portfolio` from the header and connect a Wallet Standard wallet. The page reads both original SPL Token and Token-2022 accounts through the existing Kit RPC client, sums accounts by verified mint, and ignores unsupported tokens. All stock mints and USDC are priced in one `/api/prices` request. Missing prices or unresolved registry entries prevent rebalancing; incomplete totals and weights are shown as unavailable.
+
+Targets come only from `stocklana.activeBasket`. With no valid preset selected, holdings still display but automatic rebalance is disabled. Zero-balance target assets are included so missing allocations are visible. Current stock weights are rounded to basis points with remainder correction to total 10,000. The weighted 24-hour metric describes token price changes at current holdings weights, not investment P&L.
+
+`lib/rebalance.ts` is pure and testable. It ignores drift below 100 bps and trades below $1. USD arithmetic uses numbers; conversion into atomic swap amounts uses decimal ratios and bigint, rounded down.
+
+Rebalance execution uses the existing Swap V2 engine:
+
+1. Review current/target weights, approximate sells/buys and transaction count.
+2. Overweight holdings sell sequentially into USDC. A failed sell can be retried before the buy phase, or the user can continue with proceeds from successful sells.
+3. Refresh balances and prices. The RPC must confirm successful signatures, and account reads use their slots as `minContextSlot` to avoid planning from pre-swap balances.
+4. Recalculate underweights against remaining stock value plus actual unspent sell proceeds. Available cash is capped by both the change from the starting USDC balance and Jupiter's reported actual received/spent amounts. Existing USDC is preserved. If cash is short, buy allocations scale down and trades below $1 are omitted.
+5. Buy sequentially with fresh orders; refresh again before each buy and after completion. Failed buys can be retried individually after recalculation. Successful legs are never replayed. After buying has begun, remaining failed sells require reviewing a new plan.
+
+Unknown execution outcomes pause the run and block new spending until reconciled. Quote/signature rejection and definite execution failures remain distinguishable from an uncertain submission. State and signed payloads stay in memory only; keep the page open, and inspect wallet history if it is reloaded. Leaving the page stops further signing requests, but a transaction already submitted can still finish.
+
+`Rebalance partially completed` preserves successful trade links and offers recovery. `Rebalance trades completed` means the planned executable trades finished, not that exact target percentages were achieved. Fees, rounding, minimum-trade rules, liquidity, and price movement can leave residual drift or USDC.
+
+Tests include holdings aggregation, missing prices, thresholds, weight totals, exact atomic conversion, sell/refresh/buy ordering, actual-proceeds funding, retries, and uncertain submissions. Real extension-wallet approval and mainnet rebalance receipts must be verified with the user's connected wallet; synthetic test fixtures are confined to tests.

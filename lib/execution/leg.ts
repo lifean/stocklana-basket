@@ -11,7 +11,7 @@ import { USDC_MINT } from '../amounts.ts';
 
 export function orderError(order: JupiterOrder): string {
   if (order.errorMessage) return order.errorMessage;
-  if (order.errorCode === 1) return 'Insufficient USDC to fund this swap.';
+  if (order.errorCode === 1) return 'Insufficient input token balance to fund this swap.';
   if (order.errorCode === 2 && order.router !== 'jupiterz') return 'Insufficient SOL for transaction fees or account creation.';
   if (order.errorCode === 2) return 'The required token account is missing.';
   return 'Jupiter could not build an executable route. Try a fresh quote.';
@@ -57,15 +57,18 @@ function requireWallet(client: AppClient, owner: string) {
   return connected.signer;
 }
 export async function checkUsdcBalance(client: AppClient, owner: string, amount: bigint) {
+  return checkTokenBalance(client, owner, USDC_MINT, amount, 'USDC');
+}
+export async function checkTokenBalance(client: AppClient, owner: string, mint: string, amount: bigint, symbol: string) {
   requireWallet(client, owner);
   const signal = AbortSignal.timeout(12_000);
   const [genesis, accounts] = await Promise.all([
     client.rpc.getGenesisHash().send({ abortSignal: signal }),
-    client.rpc.getTokenAccountsByOwner(address(owner), { mint: address(USDC_MINT) }, { encoding: 'jsonParsed', commitment: 'confirmed' }).send({ abortSignal: signal }),
+    client.rpc.getTokenAccountsByOwner(address(owner), { mint: address(mint) }, { encoding: 'jsonParsed', commitment: 'confirmed' }).send({ abortSignal: signal }),
   ]);
   if (genesis !== '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d') throw new Error('The configured RPC is not Solana mainnet.');
   const balance = accounts.value.reduce((sum, entry) => sum + BigInt(entry.account.data.parsed.info.tokenAmount.amount), 0n);
-  if (balance < amount) throw new Error('Insufficient USDC balance.');
+  if (balance < amount) throw new Error(`Insufficient ${symbol} balance.`);
   return balance;
 }
 export async function assertOrderFresh(order: JupiterOrder, transaction: Transaction, client: AppClient) {
@@ -105,25 +108,28 @@ export function applyExecutionResult(leg: ExecutionLeg, result: JupiterExecution
   if (leg.status === 'success') return leg;
   if (result.status === 'Success') {
     if (!result.signature || !/^[1-9A-HJ-NP-Za-km-z]{64,88}$/.test(result.signature) || getBase58Encoder().encode(result.signature).length !== 64 || result.code !== 0) throw new UnknownExecutionError('Jupiter returned an incomplete success response. Check this submission.');
-    return { ...leg, status: 'success', signature: result.signature, receivedAmount: result.totalOutputAmount === null ? undefined : BigInt(result.totalOutputAmount), error: undefined, outcomeUnknown: false };
+    return { ...leg, status: 'success', signature: result.signature, receivedAmount: result.totalOutputAmount === null ? undefined : BigInt(result.totalOutputAmount), spentAmount: result.totalInputAmount === null ? undefined : BigInt(result.totalInputAmount), error: undefined, outcomeUnknown: false };
   }
   // Unknown router errors must be reconciled before a fresh order could spend twice.
   const uncertain = result.code === null || [-1001, -2001].includes(result.code) || (!!leg.outcomeUnknown && !result.signature);
   return { ...leg, status: 'failed', signature: result.signature ?? undefined, error: result.error || `Jupiter execution failed (code ${result.code ?? 'unknown'}).`, outcomeUnknown: uncertain };
 }
-export async function executeLeg(leg: ExecutionLeg, owner: string, order: JupiterOrder, client: AppClient, onChange: (leg: ExecutionLeg) => void, onSubmission: (payload: ExecutePayload) => void): Promise<ExecutionLeg> {
+export async function executeLeg(leg: ExecutionLeg, owner: string, order: JupiterOrder, client: AppClient, onChange: (leg: ExecutionLeg) => void, onSubmission: (payload: ExecutePayload) => void, abortSignal?: AbortSignal): Promise<ExecutionLeg> {
   if (leg.status === 'success') return leg;
   let current = { ...leg };
   let submitted = false;
   const update = (patch: Partial<ExecutionLeg>) => { current = { ...current, ...patch }; onChange(current); };
   try {
+    abortSignal?.throwIfAborted();
     const transaction = validateLegOrder(order, leg);
-    await checkUsdcBalance(client, owner, leg.inputAmount);
+    await checkTokenBalance(client, owner, leg.inputMint, leg.inputAmount, leg.inputSymbol);
     await assertOrderFresh(order, transaction, client);
     update({ status: 'awaiting-signature', error: undefined, requestId: order.requestId!, expectedOutputAmount: BigInt(order.outAmount!) });
+    abortSignal?.throwIfAborted();
     const signedTransaction = await signOrderTransaction(transaction, requireWallet(client, owner));
     requireWallet(client, owner);
     await assertOrderFresh(order, transaction, client);
+    abortSignal?.throwIfAborted();
     const payload = { signedTransaction, requestId: order.requestId! };
     onSubmission(payload);
     submitted = true;
