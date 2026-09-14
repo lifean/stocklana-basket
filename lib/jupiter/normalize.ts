@@ -32,3 +32,16 @@ export function normalizePrices(data: unknown, ids: string[]): Record<string, St
     return [id, { usdPrice: price !== null && price > 0 ? price : null, liquidity: numeric(p.liquidity), priceChange24h: numeric(p.priceChange24h), decimals: decimals !== null && Number.isInteger(decimals) && decimals >= 0 && decimals <= 255 ? decimals : null }];
   }));
 }
+
+export function normalizeVerifiedStocks(data: unknown): StockRegistry {
+  // Detect ambiguity across all verified candidates before checking the stock tag.
+  const registry = normalizeStocks(data);
+  const stockMints = new Set((data as unknown[]).filter(record)
+    .filter(token => Array.isArray(token.tags) && token.tags.includes('stocks'))
+    .map(token => token.id));
+  for (const stock of registry.stocks) {
+    if (!stockMints.has(stock.mint)) registry.unavailable.push({ symbol: stock.symbol, reason: 'unavailable' });
+  }
+  registry.stocks = registry.stocks.filter(stock => stockMints.has(stock.mint));
+  return registry;
+}

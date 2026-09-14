@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { address } from '@solana/kit';
 import { useClient } from '@solana/react';
 import { useConnectedWallet } from '@solana/kit-plugin-wallet/react';
@@ -85,6 +86,6 @@ export function InvestmentForm({ basket }: { basket: Basket }) {
       const shares = price ? Number(allocations[i]) / 1_000_000 / price : null;
       const issue = registry?.unavailable.find(s => s.symbol === asset.symbol);
       return <div className="preview-leg" key={asset.symbol}><div><strong>{asset.symbol}</strong><span className="muted small">{loading ? 'Loading estimate…' : issue?.reason === 'ambiguous' ? 'Ambiguous stock symbol' : !stock ? 'Stock unavailable' : shares === null ? 'Price unavailable' : `≈ ${shares.toLocaleString(undefined, { maximumFractionDigits: Math.min(stock.decimals, 8) })} estimated shares`}</span></div><strong>{formatUsdc(allocations[i])} <span className="muted small">USDC</span></strong></div>;
-    })}</div><div className="preview-total"><strong>Total</strong><strong>{formatUsdc(preview)} USDC</strong></div><p className="muted small">Indicative estimates using current USD prices and 1 USDC ≈ $1. These are token units, not a swap quote; fees, slippage, and issuer share ratios are not included.</p><button className="button primary full" disabled>Buy Basket</button><p className="muted small centered">Buying arrives in Phase 2. No transactions are executed.</p></div>}
+    })}</div><div className="preview-total"><strong>Total</strong><strong>{formatUsdc(preview)} USDC</strong></div><p className="muted small">Indicative estimates using current USD prices and 1 USDC ≈ $1. These are token units, not a swap quote; fees, slippage, and issuer share ratios are not included.</p><button className="button primary full" disabled>Buy Basket</button><p className="muted small centered">Basket buying is pending the first mainnet swap verification.</p><Link className="text-button small" href="/swap-test">Day 2: verify a single-stock purchase →</Link></div>}
   </section>;
 }

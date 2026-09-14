@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { baskets, validateBasket } from '../lib/baskets.ts';
 import { allocateUsdc, formatUsdc, parseUsdc, USDC_MINT } from '../lib/amounts.ts';
-import { normalizeStocks, normalizePrices } from '../lib/jupiter/normalize.ts';
+import { normalizeStocks, normalizeVerifiedStocks, normalizePrices } from '../lib/jupiter/normalize.ts';
 
 test('100 USDC allocates 40/20/20/20 to AI Leaders with no precision loss', () => {
   assert.equal(parseUsdc('100'), 100_000_000n);
@@ -42,4 +42,18 @@ test('missing or invalid Jupiter prices remain null', () => {
   assert.equal(result[USDC_MINT].usdPrice, null);
   assert.equal(result[USDC_MINT].liquidity, null);
   assert.equal(result.missing.usdPrice, null);
+});
+
+test('verified-registry fallback requires the stocks tag', () => {
+  assert.equal(normalizeVerifiedStocks([fixture]).stocks.length, 0);
+  assert.equal(normalizeVerifiedStocks([{ ...fixture, tags: ['stocks'] }]).stocks.length, 1);
+  assert.throws(() => normalizeVerifiedStocks({ status: 400, message: 'Invalid tag provided.' }));
+});
+test('fallback checks duplicate verified symbols even outside the stocks tag', () => {
+  const result = normalizeVerifiedStocks([
+    { ...fixture, tags: ['stocks'] },
+    { ...fixture, id: 'So11111111111111111111111111111111111111112', tags: ['verified'] },
+  ]);
+  assert.equal(result.stocks.length, 0);
+  assert.equal(result.unavailable[0].reason, 'ambiguous');
 });

@@ -1,5 +1,5 @@
 import 'server-only';
-import { normalizeStocks, normalizePrices } from './normalize';
+import { normalizeStocks, normalizeVerifiedStocks, normalizePrices, record } from './normalize';
 
 export class JupiterError extends Error {
   constructor(message: string, public status: number) { super(message); }
@@ -26,7 +26,19 @@ async function cached<T>(key: string, ttl: number, load: () => Promise<T>): Prom
   cache.set(key, { expires: Date.now() + ttl, value });
   try { return await value; } catch (error) { cache.delete(key); throw error; }
 }
-export function getStocks() { return cached('stocks', 60_000, async () => normalizeStocks(await jupiterGet('/tokens/v2/tag?query=stocks'))); }
+export function getStocks() {
+  return cached('stocks', 60_000, async () => {
+    let data = await jupiterGet('/tokens/v2/tag?query=stocks');
+    // Jupiter currently rejects its documented stocks tag in an HTTP 200 body.
+    // Fetch the full verified registry so symbol search limits cannot hide duplicates.
+    if (record(data) && data.status === 400 && data.message === 'Invalid tag provided.') {
+      console.warn('Jupiter rejected the stocks tag; using the complete verified registry.');
+      data = await jupiterGet('/tokens/v2/tag?query=verified');
+      return normalizeVerifiedStocks(data);
+    }
+    return normalizeStocks(data);
+  });
+}
 export function getPrices(ids: string[]) {
   const sorted = [...ids].sort();
   return cached(`prices:${sorted.join(',')}`, 15_000, async () => normalizePrices(await jupiterGet(`/price/v3?ids=${encodeURIComponent(sorted.join(','))}`), sorted));

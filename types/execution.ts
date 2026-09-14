@@ -1,3 +1,3 @@
 export type ExecutionStatus = 'idle' | 'quoting' | 'awaiting-signature' | 'executing' | 'success' | 'failed';
-export interface ExecutionLeg { id: string; inputMint: string; outputMint: string; inputSymbol: string; outputSymbol: string; inputAmount: bigint; expectedOutputAmount?: bigint; requestId?: string; status: ExecutionStatus; signature?: string; error?: string; }
+export interface ExecutionLeg { id: string; inputMint: string; outputMint: string; inputSymbol: string; outputSymbol: string; inputAmount: bigint; expectedOutputAmount?: bigint; requestId?: string; status: ExecutionStatus; signature?: string; error?: string; receivedAmount?: bigint; outcomeUnknown?: boolean; }
 export interface BasketExecution { basketId: string; wallet: string; investmentAmount: bigint; legs: ExecutionLeg[]; status: 'preparing' | 'executing' | 'partial' | 'success' | 'failed'; }
