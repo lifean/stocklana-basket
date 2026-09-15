@@ -70,3 +70,22 @@ footer { padding: 25px 0; border-top: 1px solid var(--line); display: flex; just
 .rebalance-leg p { margin: 7px 0; }
 .portfolio-nav { display: flex; align-items: center; gap: 18px; }
 @media (max-width: 640px) { .portfolio-summary { grid-template-columns: 1fr; gap: 16px; }.portfolio-title { font-size: 34px; }.rebalance-action, .rebalance-leg { align-items: stretch; flex-direction: column; }.portfolio-controls { flex-wrap: wrap; }.portfolio-nav { gap: 8px; }.portfolio-nav > a { font-size: 10px; }.portfolio-positions { padding: 15px; } }
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.error p { margin: 0 0 6px; }.error pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; }.error summary { cursor: pointer; }
+.empty-state { padding: 32px 0; text-align: center; }.empty-state p { line-height: 1.6; }
+.basket-execution h3 { margin-top: 24px; }.basket-execution > .button { margin-top: 12px; }
+progress { width: 100%; height: 9px; accent-color: var(--green); }
+input, .preview-total, .preview-leg, table, .portfolio-summary h2 { font-variant-numeric: tabular-nums; }
+.preview-total { gap: 12px; }.preview-total strong { text-align: right; }
+.quick-select button { min-height: 44px; } .rebalance-leg > div { min-width: 0; }
+@media (max-width: 640px) {
+ .site-header { flex-wrap: wrap; gap: 12px; }.portfolio-nav { margin-left: auto; }.site-header .button { min-height: 44px; }
+ .portfolio-positions table, .portfolio-positions tbody, .portfolio-positions tr { display: block; }
+ .portfolio-positions thead { display: none; }.portfolio-positions tr { border-bottom: 1px solid var(--line); padding: 14px 0; }
+ .portfolio-positions th { display: block; border: 0; padding: 8px; white-space: normal; }
+ .portfolio-positions td { display: flex; justify-content: space-between; gap: 12px; border: 0; padding: 7px 8px; white-space: normal; }
+ .portfolio-positions td::before { content: attr(data-label); color: var(--muted); }
+ .preview-total { font-size: 13px; }.portfolio-controls .button { width: 100%; }
+}
+.loading-skeleton { display: grid; gap: 14px; margin: 24px 0; padding: 24px; background: white; border: 1px solid var(--line); border-radius: 15px; }
+.loading-skeleton span { display: block; height: 22px; background: #e9eee7; border-radius: 5px; }.loading-skeleton span:nth-child(2) { width: 75%; }.loading-skeleton span:nth-child(3) { width: 50%; }

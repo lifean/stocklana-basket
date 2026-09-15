@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { BasketPurchase } from './basket-purchase';
+import { ErrorNotice } from './error-notice';
 import { address } from '@solana/kit';
 import { useClient } from '@solana/react';
 import { useConnectedWallet } from '@solana/kit-plugin-wallet/react';
@@ -19,6 +20,7 @@ export function InvestmentForm({ basket }: { basket: Basket }) {
   const client = useClient<AppClient>();
   const connected = useConnectedWallet(client);
   const owner = connected?.account.address;
+  const [executionStarted, setExecutionStarted] = useState(false);
   const [amount, setAmount] = useState('100');
   const [preview, setPreview] = useState<bigint | null>(null);
   const [validation, setValidation] = useState<string | null>(null);
@@ -72,20 +74,21 @@ export function InvestmentForm({ basket }: { basket: Basket }) {
   function refreshData() { setLoading(true); setDataError(null); setRegistry(null); setPrices({}); setRefresh(n => n + 1); }
   return <section className="panel investment-panel"><span className="eyebrow">MAKE IT YOURS</span><h2>Start with USDC</h2>
     <form onSubmit={event => { event.preventDefault(); try { const value = parseUsdc(amount); setValidation(null); setPreview(value); } catch (error) { setPreview(null); setValidation((error as Error).message); } }}>
-      <label htmlFor="investment-amount">Investment Amount</label><div className="amount-field"><input id="investment-amount" inputMode="decimal" autoComplete="off" value={amount} onChange={e => updateAmount(e.target.value)} aria-invalid={!!validation} aria-describedby={validation ? 'amount-error' : undefined} /><span>USDC</span></div>
+      <fieldset disabled={executionStarted}><label htmlFor="investment-amount">Investment Amount</label><div className="amount-field"><input id="investment-amount" inputMode="decimal" autoComplete="off" value={amount} onChange={e => updateAmount(e.target.value)} aria-invalid={!!validation} aria-describedby={validation ? 'amount-error' : undefined} /><span>USDC</span></div>
       <div className="quick-select">{[25, 50, 100].map(value => <button type="button" className={amount === String(value) ? 'selected' : ''} key={value} onClick={() => updateAmount(String(value))}>${value}</button>)}</div>
       <div className="balance-line small muted">{owner ? <><span>{balance?.error ? 'USDC balance unavailable. Check your RPC connection.' : balance?.amount !== null && balance?.amount !== undefined ? `Wallet balance: ${formatUsdc(balance.amount)} USDC` : 'Loading USDC balance…'}</span><button className="text-button" type="button" onClick={() => { setBalanceState(null); setBalanceRefresh(n => n + 1); }}>Refresh</button></> : 'Connect your wallet to see your USDC balance. You can preview without connecting.'}</div>
       {validation && <p role="alert" className="error" id="amount-error">{validation}</p>}
+      {balance?.amount === 0n && !executionStarted && <p className="small muted">Your wallet has no USDC. Add mainnet USDC and some SOL for network fees to invest.</p>}
       {insufficient && <p role="alert" className="error">Insufficient USDC balance for this investment. You can still review the allocation.</p>}
-      <button className="button primary full" type="submit">Preview Investment <span>→</span></button>
+      <button className="button primary full" type="submit">Preview Investment <span>→</span></button></fieldset>
     </form>
-    <div className="market-status" aria-live="polite">{loading ? <p className="muted small">Loading verified stock metadata and Jupiter prices…</p> : <><p className="small muted">Market data from Jupiter <button className="text-button" onClick={refreshData}>Refresh</button></p>{dataError && <p role="alert" className="error">{dataError}</p>}{registry?.unavailable.filter(s => basket.assets.some(a => a.symbol === s.symbol)).map(s => <p className="error small" key={s.symbol}>{s.symbol}: {s.reason === 'ambiguous' ? 'Multiple verified mints found. Unavailable until the canonical mint is confirmed.' : 'Verified stock unavailable.'}</p>)}</>}</div>
+    <div className="market-status" aria-live="polite">{loading ? <p className="muted small">Loading verified stock metadata and Jupiter prices…</p> : <><p className="small muted">Market data from Jupiter <button className="text-button" disabled={executionStarted} onClick={refreshData}>Refresh</button></p>{dataError && <ErrorNotice error={dataError} />}{registry?.unavailable.filter(s => basket.assets.some(a => a.symbol === s.symbol)).map(s => <p className="error small" key={s.symbol}>{s.symbol}: {s.reason === 'ambiguous' ? 'Multiple verified mints found. Unavailable until the canonical mint is confirmed.' : 'Verified stock unavailable.'}</p>)}</>}</div>
     {preview !== null && <div className="preview" aria-live="polite"><span className="eyebrow">INVESTMENT PREVIEW</span><h3>Invest {formatUsdc(preview)} USDC</h3><div className="preview-legs">{basket.assets.map((asset, i) => {
       const stock = registry?.stocks.find(s => s.symbol === asset.symbol);
       const price = stock ? prices[stock.mint]?.usdPrice : null;
       const shares = price ? Number(allocations[i]) / 1_000_000 / price : null;
       const issue = registry?.unavailable.find(s => s.symbol === asset.symbol);
       return <div className="preview-leg" key={asset.symbol}><div><strong>{asset.symbol}</strong><span className="muted small">{loading ? 'Loading estimate…' : issue?.reason === 'ambiguous' ? 'Ambiguous stock symbol' : !stock ? 'Stock unavailable' : shares === null ? 'Price unavailable' : `≈ ${shares.toLocaleString(undefined, { maximumFractionDigits: Math.min(stock.decimals, 8) })} estimated shares`}</span></div><strong>{formatUsdc(allocations[i])} <span className="muted small">USDC</span></strong></div>;
-    })}</div><div className="preview-total"><strong>Total</strong><strong>{formatUsdc(preview)} USDC</strong></div><p className="muted small">Indicative estimates using current USD prices and 1 USDC ≈ $1. These are token units, not a swap quote; fees, slippage, and issuer share ratios are not included.</p><button className="button primary full" disabled>Buy Basket</button><p className="muted small centered">Basket buying is pending the first mainnet swap verification.</p><Link className="text-button small" href="/swap-test">Day 2: verify a single-stock purchase →</Link></div>}
+    })}</div><div className="preview-total"><strong>Total</strong><strong>{formatUsdc(preview)} USDC</strong></div><p className="muted small">Indicative estimates using current USD prices and 1 USDC ≈ $1. These are token units, not a swap quote; fees, slippage, and issuer share ratios are not included.</p>{registry && !loading && !dataError && <BasketPurchase availableBalance={balance?.amount ?? null} onStarted={() => setExecutionStarted(true)} key={`${basket.id}:${preview}`} basket={basket} amount={preview} registry={registry} />}</div>}
   </section>;
 }

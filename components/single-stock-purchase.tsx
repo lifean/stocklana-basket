@@ -1,4 +1,5 @@
 'use client';
+import { ErrorNotice } from './error-notice';
 import { useEffect, useRef, useState } from 'react';
 import { useClient } from '@solana/react';
 import { useConnectedWallet } from '@solana/kit-plugin-wallet/react';
@@ -98,7 +99,7 @@ export function SingleStockPurchase() {
     <span className="eyebrow">DAY 2 · SINGLE MAINNET PURCHASE</span><h2>Buy NVDAx with USDC</h2>
     <p className="muted small">First verify one small purchase using your connected wallet. This executes a real mainnet swap.</p>
     {!registry && !registryError && <p role="status">Loading verified stocks…</p>}
-    {registryError && <p role="alert" className="error">{registryError}</p>}
+    {registryError && <ErrorNotice error={registryError} />}
     {(issue || (registry && !stock)) && <p role="alert" className="error">{issue?.reason === 'ambiguous' ? 'NVDAx has ambiguous verified mints. Buying is disabled.' : 'Verified NVDAx is unavailable.'}</p>}
     {(registryError || issue) && <button className="text-button" disabled={blocked} onClick={() => { setRegistry(null); setRegistryError(null); setReload(n => n + 1); }}>Refresh stock registry</button>}
     {!wallet && <p className="muted small">Connect your Wallet Standard wallet using the button above.</p>}
@@ -111,7 +112,7 @@ export function SingleStockPurchase() {
     {stock && <p className="muted small" style={{ overflowWrap: 'anywhere' }}>Verified mint: {stock.mint}</p>}
     {!finished && <button className="button secondary full" disabled={!!blocked || !wallet || !capable || !stock || !!issue || !parsed} onClick={prepare}>{leg?.status === 'failed' ? 'Retry · Review fresh quote' : 'Review quote'}</button>}
     {order && leg && stock && <div className="preview"><h3>Review your purchase</h3><div className="preview-total"><span>Spend</span><strong>{formatUsdc(leg.inputAmount)} USDC</strong></div><div className="preview-total"><span>Expected received</span><strong>{tokenAmount(BigInt(order.outAmount!), stock.decimals)} NVDAx</strong></div><p className="small muted">Price impact: {order.priceImpact === null ? 'Unavailable' : `${order.priceImpact}%`} · Router: {order.router ?? 'Jupiter'}</p><p className="small muted">Slippage and priority fees are determined by Jupiter. Expected output can change within the quoted slippage.</p>{expired && <p className="error">Quote expired. Review a fresh quote.</p>}<button className="button primary full" disabled={!!blocked || expired || !capable || wallet?.account.address !== orderOwner} onClick={buy}>Buy {formatUsdc(leg.inputAmount)} USDC of NVDAx</button></div>}
-    {leg && <div className="preview" aria-live="polite"><h3>{labels[leg.status]}</h3><p>{formatUsdc(leg.inputAmount)} USDC → NVDAx</p>{leg.error && <p className="error" role="alert">{leg.error}</p>}{leg.outcomeUnknown && <><p className="small muted">Do not start another purchase or reload while this outcome is unresolved. Checking resubmits the same signed transaction, without a new order.</p><button className="button secondary" disabled={busy} onClick={reconcile}>Check execution</button></>}{finished && <><p>Single-stock purchase completed.</p><p>{leg.receivedAmount !== undefined && stock ? `Received ${tokenAmount(leg.receivedAmount, stock.decimals)} NVDAx` : 'Received amount unavailable; inspect the transaction.'}</p><p className="muted small">Share the transaction signature to verify this first mainnet swap before basket execution is implemented.</p></>}{leg.signature && <a className="text-button" target="_blank" rel="noreferrer" href={`https://solscan.io/tx/${leg.signature}`}>View transaction on Solscan ↗</a>}</div>}
-    {error && <p className="error" role="alert">{error}</p>}
+    {leg && <div className="preview" aria-live="polite"><h3>{labels[leg.status]}</h3><p>{formatUsdc(leg.inputAmount)} USDC → NVDAx</p>{leg.error && <ErrorNotice error={leg.error} />}{leg.outcomeUnknown && <><p className="small muted">Do not start another purchase or reload while this outcome is unresolved. Checking resubmits the same signed transaction, without a new order.</p><button className="button secondary" disabled={busy} onClick={reconcile}>Check execution</button></>}{finished && <><p>Single-stock purchase completed.</p><p>{leg.receivedAmount !== undefined && stock ? `Received ${tokenAmount(leg.receivedAmount, stock.decimals)} NVDAx` : 'Received amount unavailable; inspect the transaction.'}</p><p className="muted small">Verify settlement and received tokens using the transaction receipt.</p></>}{leg.signature && <a className="text-button" target="_blank" rel="noreferrer" href={`https://solscan.io/tx/${leg.signature}`}>View on Solscan ↗</a>}</div>}
+    {error && <ErrorNotice error={error} />}
   </section>;
 }

@@ -1,41 +1,81 @@
 # Stocklana Basket
 
-A hackathon MVP for exploring three preset tokenized equity strategies on Solana, connecting a Wallet Standard wallet, and previewing how a USDC investment is allocated. Buy Basket remains disabled until the first real single-stock swap is verified. `/swap-test` now supports a real, wallet-approved USDC → NVDAx purchase on mainnet.
+Build, buy and rebalance tokenized stock portfolios directly from a Solana wallet.
 
-## Setup
+## Problem
 
-Requires Node.js 24+ and npm.
+Tokenized stocks exist on Solana, but constructing a diversified portfolio still requires users to discover and buy individual assets one by one.
+
+## Solution
+
+Stocklana Basket lets users select a strategy, invest USDC across multiple tokenized stocks, hold those assets directly in their own wallet, and rebalance the portfolio.
+
+Three presets: AI Leaders, US Growth and Core US. Allocations use integer basis points; onchain amounts use bigint. Supported assets are NVDAx, METAx, GOOGLx, QQQx and SPYx, resolved from Jupiter's verified registry. Ambiguous symbols are unavailable rather than guessed.
+
+## Why Solana
+
+Tokenized equities are native onchain assets. Solana provides fast settlement, low transaction costs, self custody and composability; Jupiter aggregates available liquidity. The infrastructure runs 24/7, although individual assets and routes may have trading or geographic restrictions.
+
+## Demo Flow
+
+Connect Wallet → Choose Basket → Invest USDC → Review live quotes → Buy Basket → Sign component trades → View Portfolio → Rebalance preview → Rebalance → Updated holdings.
+
+For AI Leaders, 100 USDC allocates 40 to NVDAx and 20 each to METAx, GOOGLx and QQQx. Every swap is independent. Execution pauses on failure; retry that asset or continue pending trades. Successful swaps remain completed and link to Solscan.
+
+Rebalancing sells overweight positions first, refreshes confirmed balances and prices, then builds fresh buys using actual sell proceeds. Existing USDC is preserved. Drift under 100 basis points and trades below $1 are ignored.
+
+## Architecture
+
+```text
+Browser
+ |
+Wallet Standard
+ |
+Next.js
+ |
+Jupiter APIs
+ |-- Tokens V2
+ |-- Price V3
+ |-- Swap V2 (/order + /execute)
+ |
+Solana
+```
+
+The browser also reads Solana RPC through the Kit client. Wallet Standard signs Jupiter's versioned transactions, preserving other signer slots. The server proxies orders and execution; Jupiter submits transactions. There is no database or server wallet.
+
+```text
+app/                     App Router pages, layout and providers
+  basket/[id]/           Basket allocation, preview and purchase
+  portfolio/             Real holdings and rebalance
+  swap-test/             Optional single-stock verification page
+  api/stocks/            Verified supported stock registry
+  api/prices/            Batched Price V3 proxy (20 mints maximum)
+  api/jupiter/           Swap V2 order and execute proxies
+components/              Wallet, investment, execution and portfolio UI
+lib/execution/           Shared signing, basket plan and rebalance engine
+lib/jupiter/             Server clients, validation and normalization
+lib/solana/              Mainnet client and confirmed balance reads
+lib/                     Amounts, baskets, portfolio and rebalance calculations
+types/                   Domain types
+tests/                   Node unit tests
+```
+
+Metadata caches for 60 seconds and prices for 15 seconds per server instance. If Jupiter rejects the stocks tag, the registry falls back to the complete verified list, requires stock tags and checks duplicate symbols before selection. No stock mint or price is fabricated.
+
+## Stack
+
+Next.js App Router, TypeScript, Tailwind CSS, Node.js 24+, @solana/kit, @solana/react, RPC and wallet Kit plugins, Wallet Standard and Jupiter Developer APIs.
+
+## Local Setup
 
 ```sh
 npm install
 cp .env.example .env.local
-# Fill in .env.local, then:
+# Fill in the environment variables below.
 npm run dev
 ```
 
-Open http://localhost:3000. Choose AI Leaders, enter 100 USDC, and preview NVDA 40 / META 20 / GOOGL 20 / QQQ 20. Wallet connection is optional for previewing.
-
-| Variable | Purpose |
-| --- | --- |
-| `NEXT_PUBLIC_SOLANA_RPC_URL` | Browser-accessible **mainnet** RPC endpoint with CORS support. Public by design; use a domain-restricted public RPC credential if needed. Falls back to Solana's rate-limited public mainnet endpoint. |
-| `JUPITER_API_KEY` | Server-only key from the Jupiter developer portal. Required for live stocks and prices. Never prefix it with `NEXT_PUBLIC_`. |
-
-Restart the dev server after changing environment variables. Public RPC configuration is embedded at build time, so rebuild production after changing it. Do not commit `.env.local`.
-
-## Architecture and stack
-
-- Next.js App Router, TypeScript, React, Tailwind CSS; no database or authentication.
-- `lib/solana/client.ts` composes Solana Kit, RPC and Wallet Standard wallet plugins. `app/providers.tsx` publishes it through `@solana/react`. Wallet discovery supports compatible Phantom, Backpack and Solflare installations without wallet-specific adapters. Wallet persistence is disabled.
-- `types/` contains basket, stock, execution and portfolio domain types. Execution legs track the single-stock purchase state; basket execution remains gated.
-- `lib/baskets.ts` defines the three presets and validates integer weights totaling 10,000 basis points. `lib/amounts.ts` parses USDC as bigint and assigns rounding remainders without losing atomic units.
-- `GET /api/stocks` uses Jupiter Tokens V2's stocks tag, requires exact symbols and `isVerified === true`, and returns `{ stocks, unavailable }`. If Jupiter explicitly rejects its documented stocks tag, the route falls back to the complete verified registry and requires a `stocks` tag on the selected token. Ambiguity is checked across all verified candidates before this tag filter. Multiple distinct verified candidate mints make the symbol unavailable; candidate addresses are returned and logged. No stock mint addresses are hard-coded.
-- `GET /api/prices?ids=...` validates 1–20 mint addresses and proxies Jupiter Price V3. Each requested mint maps to `usdPrice`, `liquidity`, `priceChange24h`, and `decimals`. Missing fields, including liquidity when absent upstream, are `null`.
-- `lib/jupiter/client.ts` is server-only, applies timeouts, and caches in memory for 60 seconds (metadata) and 15 seconds (prices), with concurrent request deduplication and a 100-entry bound. Cache is per server instance; errors are not cached.
-- `components/investment-form.tsx` fetches metadata/prices on mount or explicit refresh, displays per-stock unavailable states, and reads total wallet USDC across token accounts every 30 seconds. Only `stocklana.activeBasket` is written to localStorage, as a preset ID. Prices and balances are never persisted.
-
-Official API references: [Solana React client](https://solana.com/docs/frontend/react-hooks), [Jupiter Tokens V2](https://developers.jup.ag/docs/tokens/token-information), [Jupiter Price V3](https://developers.jup.ag/docs/price).
-
-## Checks
+Open http://localhost:3000. Use a Wallet Standard wallet with transaction-signing support, such as Phantom, Backpack or Solflare.
 
 ```sh
 npm run lint
@@ -45,53 +85,35 @@ npm run build
 npm start
 ```
 
-Unit tests cover allocation precision, amount validation, token safety, missing prices, order validation, partial signing, wallet rejection, execute results and uncertain submissions. With credentials configured, check `/api/stocks` for real verified stocks and use the returned mints with `/api/prices`. In an extension-enabled browser, connect and disconnect a Wallet Standard wallet and check the USDC balance. The Day 1 preview never requests a signature. The Day 2 `/swap-test` route requests a transaction signature only after reviewing a quote and clicking Buy.
+## Environment Variables
 
-## Mainnet and MVP limitations
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_SOLANA_RPC_URL` | Mainnet RPC endpoint accessible from the browser; configure provider origin restrictions for the deployed domain. This value is public. |
+| `JUPITER_API_KEY` | Jupiter Developer API key, used only in server routes. Never prefix it with `NEXT_PUBLIC_`. |
 
-**Mainnet only.** Jupiter swaps use mainnet. Configure a mainnet RPC and use a Solana mainnet wallet. The application never handles private keys.
+Do not commit `.env.local`.
 
-Basket purchasing remains gated on verifying one real mainnet swap. No custom baskets, historical P&L, cost basis, or automated scheduling is implemented. Day 3 adds current holdings and wallet-approved rebalancing at `/portfolio`. Estimates assume 1 USDC ≈ $1 and use current Jupiter USD prices; they exclude slippage, fees and issuer-specific token-to-share ratios. Prices may be missing and require manual refresh. Tokenized equities involve issuer and market risk. An ambiguous symbol stays unavailable until its canonical mint is independently confirmed. Rate limits and wallet/RPC availability can prevent live data loading.
+For Vercel, import the repository with the Next.js preset, select Node.js 24 and configure both variables for the intended environment before building. Enable Fluid compute and ensure the execute route's 90-second maximum duration is supported by the project. See [Vercel function duration configuration](https://vercel.com/docs/functions/configuring-functions/duration). No filesystem persistence is required. In-memory metadata caches are opportunistic across function instances.
 
-## Day 2: first mainnet swap
+## Security
 
-1. Start the app and open `/swap-test` (also linked from the basket preview).
-2. Connect a funded Wallet Standard wallet. The default test amount is **1 USDC**; review it before buying. The wallet may also need SOL for fees and token account creation.
-3. Click **Review quote**, inspect expected received amount and price impact, then click **Buy** and approve in your wallet.
-4. Wait for **Completed**, then inspect the Solscan link. A signature alone is not success: Jupiter must return `status: Success` and `code: 0`.
-5. Share the resulting signature for mainnet verification before basket orchestration is built.
+The Jupiter API key stays server side. Assets remain in the user's wallet; the app never handles private keys. Users explicitly sign each trade. Server routes validate inputs and restrict orders to USDC and resolved supported stocks. Signing alone never marks a trade successful: Jupiter execution must report success with a transaction signature.
 
-`GET /api/jupiter/order` validates mints, positive u64 atomic amount and taker, restricts pairs to mainnet USDC ↔ an unambiguous verified registry stock, and calls only `GET https://api.jup.ag/swap/v2/order`. Orders are never cached. Slippage and priority fees are left to Jupiter.
+Unknown execution outcomes block fresh retries until checked using the original signed submission. Keep the execution tab open. Only `stocklana.activeBasket` is stored in localStorage; balances, prices and transaction records are not persisted. After reload, inspect real wallet holdings and transaction history before buying again. A selected basket does not imply that all components were purchased.
 
-`POST /api/jupiter/execute` accepts a size-bounded JSON body containing the partially signed base64 transaction and requestId. It calls only `POST https://api.jup.ag/swap/v2/execute`. The key remains server-only. `lib/execution/leg.ts` decodes/encodes with Kit and calls the Wallet Standard transaction signer without sending from the wallet. It preserves other required signer slots and existing signatures, rejects changed message bytes, checks the original wallet, input-token balance, mainnet RPC and quote validity, and waits for Jupiter's execution result.
+## Limitations
 
-Definite failures can be retried via **Review fresh quote**, with a new order and requestId. An uncertain execution blocks new purchases: **Check execution** resubmits the same signed transaction to reconcile its outcome. Keep the page open while executing or reconciling. State is memory-only; after a reload, check wallet history before buying again. No private keys, signed transactions, orders, prices or balances are stored persistently.
+- Hackathon demo on mainnet: trades spend real USDC and require SOL for network fees/account creation.
+- Preset baskets only; transactions execute as independent swaps and can partially complete.
+- No historical cost basis or total P&L; the 24-hour indicator is weighted token price change.
+- No automatic scheduled rebalancing. Exact target weights are not guaranteed.
+- API availability, routing, issuer restrictions and RPC access can affect execution.
+- Execution recovery is confined to the open tab; no cross-device transaction history.
+- Mainnet extension-wallet signing, real purchase receipts and real rebalance settlement must be verified manually before submission. Automated fixtures do not establish a real trade.
 
-Current gate: no real wallet signature or confirmed swap has yet been verified in the development environment. Basket planning, sequential four-leg execution, per-leg basket retries, Portfolio Created, and View Portfolio remain pending that required first swap.
+This project is a hackathon demo and does not constitute investment advice. Tokenized securities may be subject to geographic restrictions.
 
-Official flow: [Jupiter Swap V2 order and execute](https://developers.jup.ag/docs/swap/order-and-execute).
+## Future Work
 
-This project is a hackathon demo and does not constitute investment advice.
-
-
-## Day 3: holdings and rebalance
-
-Open `/portfolio` from the header and connect a Wallet Standard wallet. The page reads both original SPL Token and Token-2022 accounts through the existing Kit RPC client, sums accounts by verified mint, and ignores unsupported tokens. All stock mints and USDC are priced in one `/api/prices` request. Missing prices or unresolved registry entries prevent rebalancing; incomplete totals and weights are shown as unavailable.
-
-Targets come only from `stocklana.activeBasket`. With no valid preset selected, holdings still display but automatic rebalance is disabled. Zero-balance target assets are included so missing allocations are visible. Current stock weights are rounded to basis points with remainder correction to total 10,000. The weighted 24-hour metric describes token price changes at current holdings weights, not investment P&L.
-
-`lib/rebalance.ts` is pure and testable. It ignores drift below 100 bps and trades below $1. USD arithmetic uses numbers; conversion into atomic swap amounts uses decimal ratios and bigint, rounded down.
-
-Rebalance execution uses the existing Swap V2 engine:
-
-1. Review current/target weights, approximate sells/buys and transaction count.
-2. Overweight holdings sell sequentially into USDC. A failed sell can be retried before the buy phase, or the user can continue with proceeds from successful sells.
-3. Refresh balances and prices. The RPC must confirm successful signatures, and account reads use their slots as `minContextSlot` to avoid planning from pre-swap balances.
-4. Recalculate underweights against remaining stock value plus actual unspent sell proceeds. Available cash is capped by both the change from the starting USDC balance and Jupiter's reported actual received/spent amounts. Existing USDC is preserved. If cash is short, buy allocations scale down and trades below $1 are omitted.
-5. Buy sequentially with fresh orders; refresh again before each buy and after completion. Failed buys can be retried individually after recalculation. Successful legs are never replayed. After buying has begun, remaining failed sells require reviewing a new plan.
-
-Unknown execution outcomes pause the run and block new spending until reconciled. Quote/signature rejection and definite execution failures remain distinguishable from an uncertain submission. State and signed payloads stay in memory only; keep the page open, and inspect wallet history if it is reloaded. Leaving the page stops further signing requests, but a transaction already submitted can still finish.
-
-`Rebalance partially completed` preserves successful trade links and offers recovery. `Rebalance trades completed` means the planned executable trades finished, not that exact target percentages were achieved. Fees, rounding, minimum-trade rules, liquidity, and price movement can leave residual drift or USDC.
-
-Tests include holdings aggregation, missing prices, thresholds, weight totals, exact atomic conversion, sell/refresh/buy ordering, actual-proceeds funding, retries, and uncertain submissions. Real extension-wallet approval and mainnet rebalance receipts must be verified with the user's connected wallet; synthetic test fixtures are confined to tests.
+Custom baskets, recurring investment, social/shareable portfolios and multi-issuer stock routing.
