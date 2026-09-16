@@ -96,3 +96,4 @@ input, .preview-total, .preview-leg, table, .portfolio-summary h2 { font-variant
 .tessera-data dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
 .preview-leg:has(.tessera-data) { align-items: start; }.preview-leg:has(.tessera-data) > div { flex: 1; min-width: 0; }
 @media (max-width: 640px) { .preview-leg:has(.tessera-data) { flex-wrap: wrap; }.preview-leg:has(.tessera-data) > div { flex-basis: 100%; } }
+.weighted-premium { margin-top: 20px; padding: 16px; border: 1px solid var(--line); border-radius: 9px; }.weighted-premium p { margin: 8px 0 0; }

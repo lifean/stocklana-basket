@@ -1,0 +1,62 @@
+[
+  {
+    "name": "Anduril PreStocks",
+    "symbol": "ANDURIL",
+    "image": "https://www.prestocks.com/logos/anduril.png",
+    "external_url": "https://www.prestocks.com/anduril",
+    "contract_address": "PresTj4Yc2bAR197Er7wz4UUKSfqt6FryBEdAriBoQB",
+    "markPrice": 151.96975771,
+    "markValuation": 123519723122,
+    "tokenPrice": 155.35183089075687,
+    "impliedValuation": 126268643362,
+    "supply": 11805.980166317
+  },
+  {
+    "name": "Anthropic PreStocks",
+    "symbol": "ANTHROPIC",
+    "image": "https://www.prestocks.com/logos/anthropic.png",
+    "external_url": "https://www.prestocks.com/anthropic",
+    "contract_address": "Pren1FvFX6J3E4kXhJuCiAD5aDmGEb7qJRncwA8Lkhw",
+    "markPrice": 1007.38826534,
+    "markValuation": 1650446810840,
+    "tokenPrice": 975.3908078567869,
+    "impliedValuation": 1598024022651,
+    "supply": 7381.989846453
+  },
+  {
+    "name": "Figure AI PreStocks",
+    "symbol": "FIGUREAI",
+    "image": "https://www.prestocks.com/logos/figureai.png",
+    "external_url": "https://www.prestocks.com/figureai",
+    "contract_address": "PreZad18qfPtbxNpMtMuAuX2zVpvkEU8DnJx56faCWd",
+    "markPrice": 177.37541614,
+    "markValuation": 38672627025,
+    "tokenPrice": 159.37905842912136,
+    "impliedValuation": 34748935429,
+    "supply": 3012.929745084
+  },
+  {
+    "name": "Kalshi PreStocks",
+    "symbol": "KALSHI",
+    "image": "https://www.prestocks.com/logos/kalshi.png",
+    "external_url": "https://www.prestocks.com/kalshi",
+    "contract_address": "PreLWGkkeqG1s4HEfFZSy9moCrJ7btsHuUtfcCeoRua",
+    "markPrice": 868.3694268,
+    "markValuation": 31584378847,
+    "tokenPrice": 845.6598219164474,
+    "impliedValuation": 30758383894,
+    "supply": 904.904434985
+  },
+  {
+    "name": "OpenAI PreStocks",
+    "symbol": "OPENAI",
+    "image": "https://www.prestocks.com/logos/openai.png",
+    "external_url": "https://www.prestocks.com/openai",
+    "contract_address": "PreweJYECqtQwBtpxHL171nL2K6umo692gTm7Q3rpgF",
+    "markPrice": 953.1067383663136,
+    "markValuation": 1180832815245,
+    "tokenPrice": 1085.045896970121,
+    "impliedValuation": 1344296236311,
+    "supply": 2826.5826088802187
+  }
+]

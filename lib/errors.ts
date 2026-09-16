@@ -1,4 +1,5 @@
 export function friendlyError(detail: string): string {
+  if (/PreStocks.*(API|product|unavailable)/i.test(detail)) return 'PreStocks data is temporarily unavailable. Pre-IPO AI Leaders trading is disabled. Please refresh shortly.';
   if (/Tessera.*(API|product|unavailable)/i.test(detail)) return 'Tessera product data is temporarily unavailable. Future Markets trading is disabled. Please refresh shortly.';
   if (/unknown|incomplete success/i.test(detail)) return 'Execution outcome is uncertain. Check execution before placing another trade.';
   if (/reject|declin|denied|cancelled by user/i.test(detail)) return 'Wallet rejected transaction. You can retry when ready.';

@@ -11,5 +11,8 @@ export interface PreIpoAsset {
   impliedValuation?: number | null;
   holders: number | null;
   image?: string | null;
+  externalUrl?: string | null;
+  supply?: number | null;
 }
-export interface TesseraRegistry extends StockRegistry { assets: PreIpoAsset[]; }
+export interface PreIpoRegistry extends StockRegistry { assets: PreIpoAsset[]; }
+export type TesseraRegistry = PreIpoRegistry;

@@ -54,8 +54,8 @@ test('missing Tessera reference fields stay null; premium handles missing/invali
   assert.ok(Math.abs(premiumPercent(100, 110)! - 10) < 1e-10);
   assert.ok(Math.abs(premiumPercent(100, 90)! + 10) < 1e-10);
 });
-test('Future Markets is the only new basket; 100 USDC produces 60/40 mint-based legs', () => {
-  assert.equal(baskets.length, 4);
+test('Future Markets remains the sole Tessera basket with 60/40 mint-based legs', () => {
+  assert.equal(baskets.filter(b => b.provider === 'tessera').length, 1);
   assert.deepEqual(baskets.slice(0, 3).map(b => b.id), ['ai-leaders', 'us-growth', 'core-us']);
   validateBasket(basket);
   const legs = createBasketExecutionPlan(basket, 100_000_000n, registry);

@@ -10,7 +10,7 @@ Tokenized stocks exist on Solana, but constructing a diversified portfolio still
 
 Stocklana Basket lets users select a strategy, invest USDC across multiple tokenized stocks, hold those assets directly in their own wallet, and rebalance the portfolio.
 
-Three public-stock presets: AI Leaders, US Growth and Core US; plus Future Markets for Tessera pre-IPO exposure. Allocations use integer basis points; onchain amounts use bigint. Public-stock assets are NVDAx, METAx, GOOGLx, QQQx and SPYx, resolved from Jupiter's verified registry. Future Markets resolves T-OpenAI and T-Kalshi from Tessera. Ambiguous symbols are unavailable rather than guessed.
+Three public-stock presets: AI Leaders, US Growth and Core US; plus Future Markets for Tessera exposure and Pre-IPO AI Leaders for PreStocks exposure. Allocations use integer basis points; onchain amounts use bigint. Public-stock assets are NVDAx, METAx, GOOGLx, QQQx and SPYx, resolved from Jupiter's verified registry. Future Markets resolves T-OpenAI and T-Kalshi from Tessera. Ambiguous symbols are unavailable rather than guessed.
 
 ## Why Solana
 
@@ -50,6 +50,7 @@ app/                     App Router pages, layout and providers
   swap-test/             Optional single-stock verification page
   api/stocks/            Verified supported stock registry
   api/tessera/           Tessera product data and mint-based decimals
+  api/prestocks/         PreStocks product/valuation data and mint-based decimals
   api/prices/            Batched Price V3 proxy (20 mints maximum)
   api/jupiter/           Swap V2 order and execute proxies
 components/              Wallet, investment, execution and portfolio UI
@@ -131,4 +132,25 @@ The existing `/order → wallet sign → /execute` flow, portfolio token-account
 
 Pre-IPO token availability may vary by jurisdiction. This application is a hackathon demo and does not provide investment advice. See [Tessera's description of T-Token structure](https://blog.tessera.pe/posts/how-t-tokens-are-actually-structured).
 
-Before demonstrating Future Markets, verify live `/api/tessera` data, market prices, executable Jupiter routes, two independent wallet approvals, received token balances, partial retry and a real rebalance. Upstream outages and unavailable routes disable the affected flow rather than substituting tokens. PreStocks is not integrated.
+Before demonstrating Future Markets, verify live `/api/tessera` data, market prices, executable Jupiter routes, two independent wallet approvals, received token balances, partial retry and a real rebalance. Upstream outages and unavailable routes disable the affected flow rather than substituting tokens.
+
+
+## PreStocks private-market data
+
+**Pre-IPO AI Leaders** (`/basket/preipo-ai-leaders`) adds OPENAI 35%, ANTHROPIC 30%, ANDURIL 20% and FIGUREAI 15%. The existing public-stock and Tessera allocations are unchanged.
+
+`GET /api/prestocks` fetches [the official PreStocks API](https://prestocks.com/api/prestocks) without a new API key and caches normalized data for 60 seconds. It returns `assets`, executable `stocks` and `unavailable` issues. Exact symbols select the four supported products; `contract_address` establishes mint identity. Duplicate symbols, invalid addresses and missing exact-mint Jupiter metadata/decimals disable the basket. No production mint or valuation fallback is hard-coded.
+
+Mapping: `name → name`, `symbol → symbol`, `contract_address → mint`, `markPrice → markPrice`, `tokenPrice → marketPrice`, `markValuation → markValuation`, `impliedValuation → impliedValuation`, `image → image`, `external_url → externalUrl`, `supply → supply`, and `provider = prestocks`. Unavailable fields remain null. The shared Jupiter Tokens V2 resolver supplies decimals by mint.
+
+The Private Market Data panel labels PreStocks Mark Price, PreStocks Token Price and optional Jupiter Market Price separately. Sponsor token prices never replace Jupiter prices in portfolio valuation, rebalance sizing or transaction quotes.
+
+- Market premium/discount: `(tokenPrice / markPrice - 1) × 100`.
+- Implied vs. Mark Valuation: `(impliedValuation / markValuation - 1) × 100`.
+- Portfolio Weighted Premium: sum of valid component premiums multiplied by their original basis-point weights / 10000. Incomplete coverage is explicitly displayed; missing values are excluded without rescaling the remaining weights.
+
+Nonpositive denominators or invalid analytics produce “Unavailable”. Missing sponsor analytics do not block otherwise safely resolved trades. Execution reuses the existing independent Jupiter Swap V2 legs and partial retry UI; holdings use actual chain balances and the same sell/refresh/recalculate/buy rebalance engine. Provider outages unrelated to held or targeted assets do not interrupt existing baskets.
+
+PreStocks availability is jurisdiction-dependent. PreStocks provide economic exposure and do not represent direct ownership of the referenced company's shares. Hackathon demo only; not investment advice. Marks and valuation gaps are informational, not guaranteed fair value or trade recommendations. See [PreStocks legal FAQ](https://prestocks.com/faq?tab=legal).
+
+Before a mainnet demo, verify fresh sponsor data and quotes, approve the four trades with a real wallet, check Solscan receipts and received balances, and exercise partial retry and rebalance settlement. The selected basket targets apply to all recognized holdings; review any proposed sales of assets outside that basket.

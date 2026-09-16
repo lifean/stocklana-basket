@@ -1,7 +1,7 @@
 import { isAddress } from '@solana/kit';
 import { record } from '../jupiter/normalize.ts';
 import { USDC_MINT } from '../amounts.ts';
-import type { TesseraRegistry } from '../../types/pre-ipo.ts';
+import type { TesseraRegistry, PreIpoRegistry } from '../../types/pre-ipo.ts';
 export const TESSERA_SYMBOLS = ['T-OpenAI', 'T-Kalshi'] as const;
 // Accept numeric API fields or plain decimal strings, never empty strings/booleans.
 function numeric(value: unknown): number | null {
@@ -37,16 +37,20 @@ export function normalizeTessera(data: unknown): TesseraRegistry {
   }
   return result;
 }
-export function resolveTesseraMetadata(products: TesseraRegistry, metadata: unknown): TesseraRegistry {
-  const result: TesseraRegistry = { assets: products.assets, stocks: [], unavailable: [...products.unavailable] };
+export function resolvePreIpoMetadata(products: PreIpoRegistry, metadata: unknown): PreIpoRegistry {
+  const result: PreIpoRegistry = { assets: products.assets, stocks: [], unavailable: [...products.unavailable] };
   for (const asset of products.assets) {
     const matches = Array.isArray(metadata) ? metadata.filter((m): m is Record<string, unknown> => record(m) && m.id === asset.mint) : [];
     const token = matches[0];
     if (matches.length !== 1 || !token || typeof token.decimals !== 'number' || !Number.isInteger(token.decimals) || token.decimals < 0 || token.decimals > 255) {
-      result.unavailable.push({ symbol: asset.symbol, provider: 'tessera', reason: 'unavailable', message: `${asset.symbol} token metadata or decimals are unavailable. Trading is disabled.` }); continue;
+      result.unavailable.push({ symbol: asset.symbol, provider: asset.provider, reason: 'unavailable', message: `${asset.symbol} token metadata or decimals are unavailable. Trading is disabled.` }); continue;
     }
-    // Tessera establishes identity by mint; isVerified retains Jupiter's actual flag.
-    result.stocks.push({ provider: 'tessera', preIpo: asset, mint: asset.mint, symbol: asset.symbol, name: asset.name, decimals: token.decimals, icon: typeof token.icon === 'string' ? token.icon : null, usdPrice: null, liquidity: numeric(token.liquidity), isVerified: token.isVerified === true });
+    // The official provider establishes identity by mint; isVerified retains Jupiter's actual flag.
+    result.stocks.push({ provider: asset.provider, preIpo: asset, mint: asset.mint, symbol: asset.symbol, name: asset.name, decimals: token.decimals, icon: typeof token.icon === 'string' ? token.icon : null, usdPrice: null, liquidity: numeric(token.liquidity), isVerified: token.isVerified === true });
   }
   return result;
+}
+
+export function resolveTesseraMetadata(products: TesseraRegistry, metadata: unknown): TesseraRegistry {
+  return resolvePreIpoMetadata(products, metadata);
 }

@@ -1,3 +1,4 @@
+import { getPreStocks } from '@/lib/prestocks/client';
 import { getTessera } from '@/lib/tessera/client';
 import { isSupportedAsset } from '@/lib/assets';
 import { apiError, getStocks, JupiterError } from '@/lib/jupiter/client';
@@ -15,7 +16,14 @@ export async function GET(request: Request) {
     if (stockMint) {
       try { allowed = (await getStocks()).stocks.some(stock => stock.mint === stockMint && isSupportedAsset(stock)); } catch { /* Try the independent Tessera source. */ }
       if (!allowed) {
-        try { const registry = await getTessera(); allowed = !registry.unavailable.length && registry.stocks.some(stock => stock.mint === stockMint && isSupportedAsset(stock)); } catch { /* Unresolved assets remain blocked. */ }
+        // Resolve independent providers concurrently; one outage must not delay a valid other provider.
+        try {
+          await Promise.any([getTessera(), getPreStocks()].map(async pending => {
+            const registry = await pending;
+            if (registry.unavailable.length || !registry.stocks.some(stock => stock.mint === stockMint && isSupportedAsset(stock))) throw new Error('Mint unresolved by this provider.');
+          }));
+          allowed = true;
+        } catch { /* Unresolved assets remain blocked. */ }
       }
     }
     if (!allowed) throw new JupiterError('The stock is unavailable or ambiguous. Refresh the token registry.', 422);
