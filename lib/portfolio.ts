@@ -1,8 +1,9 @@
+import { isSupportedAsset } from './assets.ts';
 import type { Basket } from '../types/basket.ts';
 import type { PortfolioPosition } from '../types/portfolio.ts';
 import type { StockAsset, StockPrice } from '../types/stock.ts';
 import { USDC_MINT } from './amounts.ts';
-import { record, MVP_SYMBOLS } from './jupiter/normalize.ts';
+import { record } from './jupiter/normalize.ts';
 
 // Original SPL Token and Token-2022 program IDs, not token mint addresses.
 export const TOKEN_PROGRAMS = [
@@ -10,7 +11,7 @@ export const TOKEN_PROGRAMS = [
   'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb',
 ] as const;
 export function aggregateTokenAccounts(accounts: readonly unknown[], owner: string, stocks: StockAsset[]): Record<string, bigint> {
-  const allowed = new Map(stocks.filter(s => s.isVerified && MVP_SYMBOLS.includes(s.symbol)).map(s => [s.mint, s.decimals]));
+  const allowed = new Map(stocks.filter(isSupportedAsset).map(s => [s.mint, s.decimals]));
   allowed.set(USDC_MINT, 6);
   const balances: Record<string, bigint> = {};
   const seen = new Set<string>();
@@ -47,7 +48,7 @@ export function portfolioWeights(values: number[]): number[] {
   return weights;
 }
 export function calculatePortfolio(stocks: StockAsset[], balances: Record<string, bigint>, prices: Record<string, StockPrice>, basket: Basket | null) {
-  const positions: PortfolioPosition[] = stocks.filter(s => s.isVerified && MVP_SYMBOLS.includes(s.symbol))
+  const positions: PortfolioPosition[] = stocks.filter(isSupportedAsset)
     .filter(s => (balances[s.mint] ?? 0n) > 0n || basket?.assets.some(a => a.symbol === s.symbol))
     .map(stock => {
       const tokenAmount = balances[stock.mint] ?? 0n;
@@ -55,7 +56,7 @@ export function calculatePortfolio(stocks: StockAsset[], balances: Record<string
       const p = prices[stock.mint];
       const price = p?.usdPrice != null && Number.isFinite(p.usdPrice) && p.usdPrice > 0 ? p.usdPrice : null;
       const value = price === null ? null : uiAmount * price;
-      return { mint: stock.mint, symbol: stock.symbol, decimals: stock.decimals, tokenAmount, uiAmount, price,
+      return { provider: stock.provider ?? 'xstocks', mint: stock.mint, symbol: stock.symbol, decimals: stock.decimals, tokenAmount, uiAmount, price,
         valueUsd: tokenAmount === 0n ? 0 : value !== null && Number.isFinite(value) ? value : null,
         currentWeightBps: null, targetWeightBps: basket ? basket.assets.find(a => a.symbol === stock.symbol)?.weightBps ?? 0 : null,
         driftBps: null, priceChange24h: p?.priceChange24h ?? null, liquidity: p?.liquidity ?? null };

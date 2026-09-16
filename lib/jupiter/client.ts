@@ -4,7 +4,7 @@ import { normalizeStocks, normalizeVerifiedStocks, normalizePrices, record } fro
 export class JupiterError extends Error {
   constructor(message: string, public status: number) { super(message); }
 }
-async function jupiterGet(path: string): Promise<unknown> {
+export async function jupiterGet(path: string): Promise<unknown> {
   const key = process.env.JUPITER_API_KEY;
   if (!key) throw new JupiterError('Jupiter API is not configured. Set JUPITER_API_KEY on the server.', 503);
   try {
@@ -18,7 +18,7 @@ async function jupiterGet(path: string): Promise<unknown> {
 }
 // Bounded process-local cache, including in-flight deduplication. No persistent data.
 const cache = new Map<string, { expires: number; value: Promise<unknown> }>();
-async function cached<T>(key: string, ttl: number, load: () => Promise<T>): Promise<T> {
+export async function cached<T>(key: string, ttl: number, load: () => Promise<T>): Promise<T> {
   const hit = cache.get(key);
   if (hit && hit.expires > Date.now()) return hit.value as Promise<T>;
   if (cache.size >= 100) cache.delete(cache.keys().next().value!);
@@ -45,4 +45,8 @@ export function getPrices(ids: string[]) {
 }
 export function apiError(error: unknown) {
   return Response.json({ error: error instanceof JupiterError ? error.message : 'Invalid response from Jupiter. Please retry.' }, { status: error instanceof JupiterError ? error.status : 502, headers: { 'Cache-Control': 'no-store' } });
+}
+
+export function getTokenMetadata(mints: string[]) {
+  return cached(`metadata:${[...mints].sort().join(',')}`, 60_000, () => jupiterGet(`/tokens/v2/search?query=${encodeURIComponent(mints.join(','))}`));
 }

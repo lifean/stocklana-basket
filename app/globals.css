@@ -89,3 +89,10 @@ input, .preview-total, .preview-leg, table, .portfolio-summary h2 { font-variant
 }
 .loading-skeleton { display: grid; gap: 14px; margin: 24px 0; padding: 24px; background: white; border: 1px solid var(--line); border-radius: 15px; }
 .loading-skeleton span { display: block; height: 22px; background: #e9eee7; border-radius: 5px; }.loading-skeleton span:nth-child(2) { width: 75%; }.loading-skeleton span:nth-child(3) { width: 50%; }
+.strategy-category + .strategy-category { margin-top: 36px; }
+.tessera-data { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 16px; }
+.tessera-data h3 { margin-bottom: 8px; }.tessera-data dl { margin: 0 0 12px; }
+.tessera-data dl > div { display: flex; justify-content: space-between; gap: 16px; padding: 5px 0; }
+.tessera-data dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.preview-leg:has(.tessera-data) { align-items: start; }.preview-leg:has(.tessera-data) > div { flex: 1; min-width: 0; }
+@media (max-width: 640px) { .preview-leg:has(.tessera-data) { flex-wrap: wrap; }.preview-leg:has(.tessera-data) > div { flex-basis: 100%; } }

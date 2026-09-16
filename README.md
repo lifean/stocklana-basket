@@ -10,7 +10,7 @@ Tokenized stocks exist on Solana, but constructing a diversified portfolio still
 
 Stocklana Basket lets users select a strategy, invest USDC across multiple tokenized stocks, hold those assets directly in their own wallet, and rebalance the portfolio.
 
-Three presets: AI Leaders, US Growth and Core US. Allocations use integer basis points; onchain amounts use bigint. Supported assets are NVDAx, METAx, GOOGLx, QQQx and SPYx, resolved from Jupiter's verified registry. Ambiguous symbols are unavailable rather than guessed.
+Three public-stock presets: AI Leaders, US Growth and Core US; plus Future Markets for Tessera pre-IPO exposure. Allocations use integer basis points; onchain amounts use bigint. Public-stock assets are NVDAx, METAx, GOOGLx, QQQx and SPYx, resolved from Jupiter's verified registry. Future Markets resolves T-OpenAI and T-Kalshi from Tessera. Ambiguous symbols are unavailable rather than guessed.
 
 ## Why Solana
 
@@ -49,6 +49,7 @@ app/                     App Router pages, layout and providers
   portfolio/             Real holdings and rebalance
   swap-test/             Optional single-stock verification page
   api/stocks/            Verified supported stock registry
+  api/tessera/           Tessera product data and mint-based decimals
   api/prices/            Batched Price V3 proxy (20 mints maximum)
   api/jupiter/           Swap V2 order and execute proxies
 components/              Wallet, investment, execution and portfolio UI
@@ -117,3 +118,17 @@ This project is a hackathon demo and does not constitute investment advice. Toke
 ## Future Work
 
 Custom baskets, recurring investment, social/shareable portfolios and multi-issuer stock routing.
+
+## Tessera pre-IPO exposure
+
+Future Markets adds a single Pre-IPO preset: **T-OpenAI 60% / T-Kalshi 40%**. Existing public-stock basket allocations are unchanged. T-Tokens provide tokenized pre-IPO exposure, not direct ownership of OpenAI or Kalshi shares.
+
+`GET /api/tessera` fetches the [official Tessera Product API](https://rest-api.tessera.pe/v1/public/token-details), caches results for 60 seconds and returns `assets`, executable `stocks`, and `unavailable` issues. Only the exact T-OpenAI and T-Kalshi symbols are allowed. Mint addresses come from Tessera; [Jupiter Tokens V2](https://developers.jup.ag/docs/tokens/token-information) supplies decimals through exact mint lookup. Missing, invalid or ambiguous products/metadata disable the basket. No Tessera API key is required.
+
+Tessera `name`, `symbol`, `mint`, `sector`, `markPrice`, `markValuation` and `holders` are preserved. Unavailable fields remain null. Jupiter Price V3 supplies the separate market price; premium/discount is `(marketPrice / markPrice - 1) × 100`. A mark is a private-market reference, not guaranteed fair value, profit or expected return. Missing market prices never fall back to mark prices.
+
+The existing `/order → wallet sign → /execute` flow, portfolio token-account reader and sell/refresh/buy rebalance engine are reused. Portfolio recognizes both providers; the selected basket targets apply to all resolved supported positions, including zero targets for assets outside that basket. Review all proposed sells. Only the original localStorage basket selection is persisted.
+
+Pre-IPO token availability may vary by jurisdiction. This application is a hackathon demo and does not provide investment advice. See [Tessera's description of T-Token structure](https://blog.tessera.pe/posts/how-t-tokens-are-actually-structured).
+
+Before demonstrating Future Markets, verify live `/api/tessera` data, market prices, executable Jupiter routes, two independent wallet approvals, received token balances, partial retry and a real rebalance. Upstream outages and unavailable routes disable the affected flow rather than substituting tokens. PreStocks is not integrated.

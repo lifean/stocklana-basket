@@ -1,5 +1,6 @@
 import type { StockRegistry } from './stock';
 export interface PortfolioPosition {
+  provider?: import('./basket').AssetProvider;
   mint: string;
   symbol: string;
   decimals: number;
