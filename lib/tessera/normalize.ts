@@ -1,3 +1,4 @@
+import { calculatePremiumPercent } from '../pre-ipo.ts';
 import { isAddress } from '@solana/kit';
 import { record } from '../jupiter/normalize.ts';
 import { USDC_MINT } from '../amounts.ts';
@@ -10,9 +11,7 @@ function numeric(value: unknown): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 export function premiumPercent(mark: number | null, market: number | null): number | null {
-  if (mark === null || market === null || !Number.isFinite(mark) || !Number.isFinite(market) || mark <= 0 || market <= 0) return null;
-  const result = (market / mark - 1) * 100;
-  return Number.isFinite(result) ? result : null;
+  return calculatePremiumPercent(market, mark);
 }
 export function normalizeTessera(data: unknown): TesseraRegistry {
   const rows = Array.isArray(data) ? data : record(data) && Array.isArray(data.data) ? data.data : null;
@@ -38,7 +37,7 @@ export function normalizeTessera(data: unknown): TesseraRegistry {
   return result;
 }
 export function resolvePreIpoMetadata(products: PreIpoRegistry, metadata: unknown): PreIpoRegistry {
-  const result: PreIpoRegistry = { assets: products.assets, stocks: [], unavailable: [...products.unavailable] };
+  const result: PreIpoRegistry = { assets: products.assets, ...(products.fetchedAt ? { fetchedAt: products.fetchedAt } : {}), stocks: [], unavailable: [...products.unavailable] };
   for (const asset of products.assets) {
     const matches = Array.isArray(metadata) ? metadata.filter((m): m is Record<string, unknown> => record(m) && m.id === asset.mint) : [];
     const token = matches[0];

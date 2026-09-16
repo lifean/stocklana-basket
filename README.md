@@ -27,18 +27,29 @@ Rebalancing sells overweight positions first, refreshes confirmed balances and p
 ## Architecture
 
 ```text
-Browser
- |
-Wallet Standard
- |
-Next.js
- |
-Jupiter APIs
- |-- Tokens V2
- |-- Price V3
- |-- Swap V2 (/order + /execute)
- |
-Solana
+                     Stocklana Basket
+                            |
+            +---------------+---------------+
+            |               |               |
+         xStocks        PreStocks        Tessera
+            |               |               |
+     Jupiter Tokens   PreStocks API     Tessera API
+            |               |               |
+            +---------------+---------------+
+                            |
+                   Unified Asset Layer
+                            |
+                     Basket Engine
+                            |
+              +-------------+-------------+
+              |                           |
+         Jupiter Price               Jupiter Swap V2
+                                          |
+                                   Solana Wallet
+                                          |
+                                      Portfolio
+                                          |
+                                      Rebalance
 ```
 
 The browser also reads Solana RPC through the Kit client. Wallet Standard signs Jupiter's versioned transactions, preserving other signer slots. The server proxies orders and execution; Jupiter submits transactions. There is no database or server wallet.
@@ -120,7 +131,7 @@ This project is a hackathon demo and does not constitute investment advice. Toke
 
 Custom baskets, recurring investment, social/shareable portfolios and multi-issuer stock routing.
 
-## Tessera pre-IPO exposure
+## Tessera integration details
 
 Future Markets adds a single Pre-IPO preset: **T-OpenAI 60% / T-Kalshi 40%**. Existing public-stock basket allocations are unchanged. T-Tokens provide tokenized pre-IPO exposure, not direct ownership of OpenAI or Kalshi shares.
 
@@ -135,7 +146,7 @@ Pre-IPO token availability may vary by jurisdiction. This application is a hacka
 Before demonstrating Future Markets, verify live `/api/tessera` data, market prices, executable Jupiter routes, two independent wallet approvals, received token balances, partial retry and a real rebalance. Upstream outages and unavailable routes disable the affected flow rather than substituting tokens.
 
 
-## PreStocks private-market data
+## PreStocks integration details
 
 **Pre-IPO AI Leaders** (`/basket/preipo-ai-leaders`) adds OPENAI 35%, ANTHROPIC 30%, ANDURIL 20% and FIGUREAI 15%. The existing public-stock and Tessera allocations are unchanged.
 
@@ -147,10 +158,41 @@ The Private Market Data panel labels PreStocks Mark Price, PreStocks Token Price
 
 - Market premium/discount: `(tokenPrice / markPrice - 1) × 100`.
 - Implied vs. Mark Valuation: `(impliedValuation / markValuation - 1) × 100`.
-- Portfolio Weighted Premium: sum of valid component premiums multiplied by their original basis-point weights / 10000. Incomplete coverage is explicitly displayed; missing values are excluded without rescaling the remaining weights.
+- Basket vs. Mark: sum of valid component premiums multiplied by their original basis-point weights / 10000. Incomplete coverage is explicitly displayed; missing values are excluded without rescaling the remaining weights.
 
 Nonpositive denominators or invalid analytics produce “Unavailable”. Missing sponsor analytics do not block otherwise safely resolved trades. Execution reuses the existing independent Jupiter Swap V2 legs and partial retry UI; holdings use actual chain balances and the same sell/refresh/recalculate/buy rebalance engine. Provider outages unrelated to held or targeted assets do not interrupt existing baskets.
 
 PreStocks availability is jurisdiction-dependent. PreStocks provide economic exposure and do not represent direct ownership of the referenced company's shares. Hackathon demo only; not investment advice. Marks and valuation gaps are informational, not guaranteed fair value or trade recommendations. See [PreStocks legal FAQ](https://prestocks.com/faq?tab=legal).
 
 Before a mainnet demo, verify fresh sponsor data and quotes, approve the four trades with a real wallet, check Solscan receipts and received balances, and exercise partial retry and rebalance settlement. The selected basket targets apply to all recognized holdings; review any proposed sales of assets outside that basket.
+
+
+## Stocklana Bounty Integrations
+
+### PreStocks
+
+The official `https://prestocks.com/api/prestocks` response dynamically discovers OPENAI, ANTHROPIC, ANDURIL and FIGUREAI through exact symbols and `contract_address`. The **Pre-IPO AI Leaders** basket allocates 35% / 30% / 20% / 15%.
+
+Private Market Data presents PreStocks **mark price, token price, mark valuation and implied valuation**. Premium/discount compares its token price with its mark; implied-vs-mark valuation is shown separately. **Basket vs. Mark** weights valid premiums by target allocations and explicitly identifies missing components without rescaling. Jupiter market prices are separately labeled and never overwrite sponsor prices.
+
+### Tessera
+
+The official `https://rest-api.tessera.pe/v1/public/token-details` response dynamically discovers **T-OpenAI** and **T-Kalshi**. The **Future Markets** basket allocates 60% / 40%.
+
+Private Market Data presents **Tessera mark prices, mark valuations, holder counts and sectors** where supplied. Premium/discount compares Jupiter's on-chain price with Tessera's mark. **Basket vs. Tessera Mark** is unavailable until every component has valid pricing; missing marks or market prices are never treated as zero.
+
+### Shared execution and source transparency
+
+Both integrations resolve decimals using Jupiter Tokens V2 by the official mint, then reuse `/order → Wallet Standard sign → /execute`. Swaps are independent and partial failures remain visible and individually retryable. Onchain token accounts supply portfolio holdings; Jupiter prices supply portfolio values. Rebalance sells overweight assets, refreshes confirmed balances and prices, recalculates buys from actual proceeds, then requests fresh orders.
+
+A shared provider badge and `PreIpoMetrics` component keep both baskets in one product. Labels distinguish “Private-market data provided by PreStocks/Tessera” from “On-chain market price via Jupiter”. Sponsor responses include a server `fetchedAt` timestamp retained through the 60-second cache; the UI displays local update time and supports manual refresh. This timestamp describes retrieval, not the provider's own valuation publication time.
+
+Pre-IPO tokens provide tokenized economic exposure under their respective provider structures and do not necessarily represent direct ownership of the referenced company's shares. Availability may vary by jurisdiction. This hackathon demo is for informational purposes only and is not investment advice.
+
+## Submission verification
+
+Run `npm run lint`, `npm run typecheck`, `npm test` and `npm run build`. Unit tests cover provider identity, decimals, allocations, analytics, signing and rebalance sequencing. Browser regression checks use isolated wallet/RPC/execution fixtures; no automated test trade spends mainnet funds. Production paths use live provider APIs, Jupiter and Solana RPC only.
+
+Before submission, open a clean browser session for AI Leaders, Pre-IPO AI Leaders and Future Markets. Connect a funded wallet, inspect live data and allocations, review fresh Jupiter orders, then approve only small intended trades. Verify Solscan receipts, actual received balances, rejected-signature recovery, individual failed-leg retry and sell/refresh/buy rebalance settlement. If a portfolio is within the drift/minimum-trade thresholds, no rebalance is expected. Keep unresolved execution tabs open; transaction recovery is held in memory.
+
+Suggested 60-second demo: 0–10s show Public Stocks and Pre-IPO categories; 10–25s show PreStocks valuations and its 100 USDC preview; 25–40s show Tessera marks, holders/sectors and its preview; 40–50s show a prepared real execution receipt and wallet-held positions; 50–60s show target/current/drift and a rebalance preview. Obtain real receipts beforehand rather than rushing signatures during the demo.

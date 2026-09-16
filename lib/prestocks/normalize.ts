@@ -1,3 +1,4 @@
+import { calculatePremiumPercent, calculateBasketPremium } from '../pre-ipo.ts';
 import { isAddress } from '@solana/kit';
 import { record } from '../jupiter/normalize.ts';
 import { USDC_MINT } from '../amounts.ts';
@@ -36,17 +37,9 @@ export function normalizePreStocks(data: unknown): PreIpoRegistry {
 }
 // Sponsor analytics only; these values never size a swap or value onchain holdings.
 export function referenceGapPercent(mark: number | null | undefined, implied: number | null | undefined): number | null {
-  if (mark == null || implied == null || !Number.isFinite(mark) || !Number.isFinite(implied) || mark <= 0 || implied < 0) return null;
-  const gap = (implied / mark - 1) * 100;
-  return Number.isFinite(gap) ? gap : null;
+  return calculatePremiumPercent(implied, mark);
 }
 export function weightedPremium(assets: PreIpoAsset[], targets: BasketAsset[]) {
-  let value = 0; let coveredBps = 0;
-  for (const target of targets) {
-    const matches = assets.filter(a => a.provider === 'prestocks' && a.symbol === target.symbol);
-    const premium = matches.length === 1 ? referenceGapPercent(matches[0].markPrice, matches[0].marketPrice) : null;
-    if (premium === null) continue;
-    value += premium * target.weightBps / 10_000; coveredBps += target.weightBps;
-  }
-  return { value: coveredBps && Number.isFinite(value) ? value : null, coveredBps };
+  const { value, coveredBps } = calculateBasketPremium(assets, targets);
+  return { value, coveredBps };
 }

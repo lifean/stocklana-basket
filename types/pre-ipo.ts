@@ -14,5 +14,5 @@ export interface PreIpoAsset {
   externalUrl?: string | null;
   supply?: number | null;
 }
-export interface PreIpoRegistry extends StockRegistry { assets: PreIpoAsset[]; }
+export interface PreIpoRegistry extends StockRegistry { fetchedAt?: number; assets: PreIpoAsset[]; }
 export type TesseraRegistry = PreIpoRegistry;

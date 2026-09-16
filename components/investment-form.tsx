@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { BasketPurchase } from './basket-purchase';
-import { PreStocksData } from './prestocks-data';
-import { weightedPremium } from '@/lib/prestocks/normalize';
-import { TesseraData } from './tessera-data';
+import { PreIpoMetrics } from './pre-ipo-metrics';
+import { PreIpoNotice } from './pre-ipo-notice';
+import { ProviderBadge, providerNames } from './provider-badge';
+import { calculateBasketPremium, formatSignedPercent } from '@/lib/pre-ipo';
 import type { PreIpoAsset, PreIpoRegistry } from '@/types/pre-ipo';
 import { ErrorNotice } from './error-notice';
 import { address } from '@solana/kit';
@@ -29,6 +30,8 @@ export function InvestmentForm({ basket }: { basket: Basket }) {
   const [preview, setPreview] = useState<bigint | null>(null);
   const [validation, setValidation] = useState<string | null>(null);
   const [registry, setRegistry] = useState<StockRegistry | null>(null);
+  const [fetchedAt, setFetchedAt] = useState<number | null>(null);
+  const isPreIpo = basket.provider === 'tessera' || basket.provider === 'prestocks';
   const [preIpoAssets, setPreIpoAssets] = useState<PreIpoAsset[]>([]);
   const [prices, setPrices] = useState<Record<string, StockPrice>>({});
   const [dataError, setDataError] = useState<string | null>(null);
@@ -47,7 +50,7 @@ export function InvestmentForm({ basket }: { basket: Basket }) {
         const data = await getJson<StockRegistry | PreIpoRegistry>(basket.provider === 'prestocks' ? '/api/prestocks' : basket.provider === 'tessera' ? '/api/tessera' : '/api/stocks', controller.signal);
         if (controller.signal.aborted) return;
         setRegistry(data);
-        if ('assets' in data) setPreIpoAssets(data.assets);
+        if ('assets' in data) { setPreIpoAssets(data.assets); setFetchedAt(data.fetchedAt ?? null); }
         const ids = 'assets' in data ? data.assets.map(s => s.mint) : data.stocks.map(s => s.mint);
         const livePrices = ids.length ? await getJson<Record<string, StockPrice>>(`/api/prices?ids=${ids.join(',')}`, controller.signal) : {};
         if (!controller.signal.aborted) setPrices(livePrices);
@@ -75,10 +78,10 @@ export function InvestmentForm({ basket }: { basket: Basket }) {
   let parsed: bigint | null = null;
   try { parsed = parseUsdc(amount); } catch { /* Shown on submission. */ }
   const insufficient = parsed !== null && balance?.amount !== null && balance?.amount !== undefined && parsed > balance.amount;
-  const weighted = weightedPremium(preIpoAssets, basket.assets);
+  const weighted = calculateBasketPremium(preIpoAssets, basket.assets, prices);
   const allocations = preview !== null ? allocateUsdc(preview, basket.assets) : [];
   function updateAmount(value: string) { setAmount(value); setPreview(null); setValidation(null); }
-  function refreshData() { setLoading(true); setDataError(null); setRegistry(null); setPreIpoAssets([]); setPrices({}); setRefresh(n => n + 1); }
+  function refreshData() { setLoading(true); setDataError(null); setRegistry(null); setPreIpoAssets([]); setFetchedAt(null); setPrices({}); setRefresh(n => n + 1); }
   return <section className="panel investment-panel"><span className="eyebrow">MAKE IT YOURS</span><h2>Start with USDC</h2>
     <form onSubmit={event => { event.preventDefault(); try { const value = parseUsdc(amount); setValidation(null); setPreview(value); } catch (error) { setPreview(null); setValidation((error as Error).message); } }}>
       <fieldset disabled={executionStarted}><label htmlFor="investment-amount">Investment Amount</label><div className="amount-field"><input id="investment-amount" inputMode="decimal" autoComplete="off" value={amount} onChange={e => updateAmount(e.target.value)} aria-invalid={!!validation} aria-describedby={validation ? 'amount-error' : undefined} /><span>USDC</span></div>
@@ -89,16 +92,15 @@ export function InvestmentForm({ basket }: { basket: Basket }) {
       {insufficient && <p role="alert" className="error">Insufficient USDC balance for this investment. You can still review the allocation.</p>}
       <button className="button primary full" type="submit">Preview Investment <span>→</span></button></fieldset>
     </form>
-    <div className="market-status" aria-live="polite">{loading ? <p className="muted small">Loading verified stock metadata and Jupiter prices…</p> : <><p className="small muted">Market data from Jupiter <button className="text-button" disabled={executionStarted} onClick={refreshData}>Refresh</button></p>{dataError && <ErrorNotice error={dataError} />}{registry?.unavailable.filter(s => basket.assets.some(a => a.symbol === s.symbol)).map(s => <p className="error small" key={s.symbol}>{s.symbol}: {s.message ?? (s.reason === 'ambiguous' ? 'Multiple verified mints found. Unavailable until the canonical mint is confirmed.' : 'Verified stock unavailable.')}</p>)}</>}</div>
-    {basket.provider === 'tessera' && <section aria-label="Tessera reference data"><span className="tag">Tessera · Pre-IPO</span>{preIpoAssets.map(asset => <TesseraData key={asset.mint} asset={asset} marketPrice={prices[asset.mint]?.usdPrice ?? null} />)}<p className="small muted">Tessera marks are private-market reference values, not guaranteed fair value or expected returns. T-Tokens provide tokenized pre-IPO exposure, not direct ownership of company shares.</p><p className="small muted">Pre-IPO token availability may vary by jurisdiction. This application is a hackathon demo and does not provide investment advice.</p></section>}
-    {basket.provider === 'prestocks' && <section aria-label="Private Market Data"><h3>Private Market Data</h3><p className="small muted">Data provided by PreStocks</p>{preIpoAssets.map(asset => <PreStocksData key={asset.mint} asset={asset} jupiterPrice={prices[asset.mint]?.usdPrice ?? null} />)}<p className="small muted">Mark values are reference data, not guaranteed fair value. Premium and valuation gaps are informational, not profit or buy/sell recommendations.</p><p className="small muted">PreStocks availability is jurisdiction-dependent. PreStocks provide economic exposure and do not represent direct ownership of the referenced company&apos;s shares. Hackathon demo only; not investment advice.</p></section>}
-    {preview !== null && <div className="preview" aria-live="polite"><span className="eyebrow">INVESTMENT PREVIEW</span><h3>Invest {formatUsdc(preview)} USDC</h3><div className="preview-legs">{basket.assets.map((asset, i) => {
+    <div className="market-status" aria-live="polite">{loading ? <p className="muted small">Loading {isPreIpo ? providerNames[basket.provider!] : 'verified stock'} data and Jupiter prices…</p> : <><p className="small muted">{isPreIpo ? `Private-market data provided by ${providerNames[basket.provider!]}` : 'Market data from Jupiter'} <button className="text-button" disabled={executionStarted} onClick={refreshData}>Refresh</button></p>{dataError && <ErrorNotice error={dataError} />}{registry?.unavailable.filter(s => basket.assets.some(a => a.symbol === s.symbol)).map(s => <p className="error small" key={s.symbol}>{s.symbol}: {s.message ?? (s.reason === 'ambiguous' ? 'Multiple verified mints found. Unavailable until the canonical mint is confirmed.' : 'Verified stock unavailable.')}</p>)}</>}</div>
+    {isPreIpo && <section aria-label="Private Market Data"><h3>Private Market Data</h3>{fetchedAt && <p className="small muted">Sponsor data updated <time dateTime={new Date(fetchedAt).toISOString()}>{new Date(fetchedAt).toLocaleTimeString()}</time> · Refresh may use the 60-second cache.</p>}{preIpoAssets.map(asset => <PreIpoMetrics key={asset.mint} asset={asset} jupiterPrice={prices[asset.mint]?.usdPrice ?? null} />)}<p className="small muted">Marks are reference values, not guaranteed fair value. Premium and valuation differences are informational, not expected returns.</p><PreIpoNotice /></section>}
+    {preview !== null && <div className="preview" aria-live="polite"><span className="eyebrow">INVESTMENT PREVIEW</span><h3>Invest {formatUsdc(preview)} USDC</h3>{isPreIpo && <p>{basket.name}</p>}<div className="preview-legs">{basket.assets.map((asset, i) => {
       const stock = registry?.stocks.find(s => s.symbol === asset.symbol);
       const price = stock ? prices[stock.mint]?.usdPrice : null;
       const shares = price ? Number(allocations[i]) / 1_000_000 / price : null;
       const preIpo = preIpoAssets.find(s => s.symbol === asset.symbol);
       const issue = registry?.unavailable.find(s => s.symbol === asset.symbol);
-      return <div className="preview-leg" key={asset.symbol}><div><strong>{asset.symbol}</strong><span className="muted small">{loading ? 'Loading estimate…' : issue?.reason === 'ambiguous' ? 'Ambiguous stock symbol' : !stock ? 'Stock unavailable' : shares === null ? 'Price unavailable' : `≈ ${shares.toLocaleString(undefined, { maximumFractionDigits: Math.min(stock.decimals, 8) })} estimated shares`}</span>{preIpo && (preIpo.provider === 'prestocks' ? <PreStocksData compact asset={preIpo} jupiterPrice={price ?? null} /> : <TesseraData compact asset={preIpo} marketPrice={price ?? null} />)}</div><strong>{formatUsdc(allocations[i])} <span className="muted small">USDC</span></strong></div>;
-    })}</div>{basket.provider === 'prestocks' && <div className="weighted-premium"><strong>Portfolio Weighted Premium</strong><p>{weighted.value === null ? 'Unavailable' : `${weighted.value > 0 ? '+' : ''}${weighted.value.toFixed(2)}%`}</p>{weighted.coveredBps < 10000 && <p className="small muted">Partial data: {weighted.coveredBps / 100}% of target allocation covered. Missing premiums are excluded; remaining weights are not rescaled.</p>}</div>}<div className="preview-total"><strong>Total</strong><strong>{formatUsdc(preview)} USDC</strong></div><p className="muted small">Indicative estimates using current USD prices and 1 USDC ≈ $1. These are token units, not a swap quote; fees, slippage, and issuer share ratios are not included.</p>{registry && !loading && (!dataError || basket.provider === 'tessera' || basket.provider === 'prestocks') && !registry.unavailable.some(s => basket.assets.some(a => a.symbol === s.symbol)) && <BasketPurchase availableBalance={balance?.amount ?? null} onStarted={() => setExecutionStarted(true)} key={`${basket.id}:${preview}`} basket={basket} amount={preview} registry={registry} />}</div>}
+      return <div className="preview-leg" key={asset.symbol}><div><strong>{isPreIpo ? asset.displaySymbol ?? asset.stockSymbol : asset.symbol}</strong>{isPreIpo && <span className="muted small">{asset.weightBps / 100}% target allocation</span>}<span className="muted small">{loading ? 'Loading estimate…' : issue?.reason === 'ambiguous' ? 'Ambiguous stock symbol' : !stock ? 'Stock unavailable' : shares === null ? 'Price unavailable' : `≈ ${shares.toLocaleString(undefined, { maximumFractionDigits: Math.min(stock.decimals, 8) })} estimated tokens`}</span>{preIpo && <PreIpoMetrics compact asset={preIpo} jupiterPrice={price ?? null} />}</div><strong>{formatUsdc(allocations[i])} <span className="muted small">USDC</span></strong></div>;
+    })}</div>{isPreIpo && <><p><ProviderBadge provider={basket.provider} powered /></p><div className="weighted-premium"><strong>{basket.provider === 'tessera' ? 'Basket vs. Tessera Mark' : 'Basket vs. Mark'}</strong><p>{formatSignedPercent(basket.provider === 'tessera' && weighted.coveredBps !== 10000 ? null : weighted.value)}</p><p className="small muted">{basket.provider === 'prestocks' ? 'Weighted difference between current PreStocks token prices and PreStocks mark prices.' : 'Weighted difference between Jupiter on-chain market prices and Tessera mark prices.'}</p>{weighted.coveredBps < 10000 && <p className="small muted">{basket.provider === 'tessera' ? 'Unavailable until all components have valid prices.' : `Partial data: ${weighted.coveredBps / 100}% of target allocation covered; remaining weights are not rescaled.`} Missing: {weighted.excludedSymbols.join(', ')}.</p>}</div></>}<div className="preview-total"><strong>Total</strong><strong>{formatUsdc(preview)} USDC</strong></div><p className="muted small">Indicative estimates using current USD prices and 1 USDC ≈ $1. These are token units, not a swap quote; fees, slippage, and issuer share ratios are not included.</p>{registry && !loading && (!dataError || basket.provider === 'tessera' || basket.provider === 'prestocks') && !registry.unavailable.some(s => basket.assets.some(a => a.symbol === s.symbol)) && <BasketPurchase availableBalance={balance?.amount ?? null} onStarted={() => setExecutionStarted(true)} key={`${basket.id}:${preview}`} basket={basket} amount={preview} registry={registry} />}</div>}
   </section>;
 }

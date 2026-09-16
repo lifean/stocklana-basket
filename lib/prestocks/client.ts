@@ -13,6 +13,7 @@ export function getPreStocks(): Promise<PreIpoRegistry> {
       const response = await fetch('https://prestocks.com/api/prestocks', { cache: 'no-store', signal: AbortSignal.timeout(12_000) });
       if (!response.ok) throw new Error('PreStocks API unavailable');
       products = normalizePreStocks(await response.json());
+      products.fetchedAt = Date.now();
     } catch { throw new Error('PreStocks API is temporarily unavailable. Pre-IPO AI Leaders cannot be traded. Please refresh shortly.'); }
     if (!products.assets.length) return products;
     try { return resolvePreIpoMetadata(products, await getTokenMetadata(products.assets.map(a => a.mint))); }
