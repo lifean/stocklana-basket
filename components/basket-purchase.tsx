@@ -8,7 +8,8 @@ import type { Basket } from '@/types/basket';
 import type { StockRegistry } from '@/types/stock';
 import type { ExecutionLeg } from '@/types/execution';
 import type { ExecutePayload, JupiterOrder } from '@/types/jupiter';
-import { createBasketExecutionPlan } from '@/lib/execution/basket';
+import { assertBasketRegistryUnchanged, createBasketExecutionPlan } from '@/lib/execution/basket';
+import { tokenRegistryCache } from '@/lib/token-registry-cache';
 import { applyExecutionResult, checkUsdcBalance, executeLeg, getLegOrder, submitLeg } from '@/lib/execution/leg';
 import { formatUsdc } from '@/lib/amounts';
 import { ErrorNotice } from './error-notice';
@@ -18,6 +19,7 @@ export function BasketPurchase({ basket, amount, registry, availableBalance, onS
   const { wallet, restoring } = useWalletConnection(client);
   const [legs, setLegs] = useState<ExecutionLeg[]>([]);
   const [quotes, setQuotes] = useState<JupiterOrder[]>([]);
+  const [reviewedRegistry, setReviewedRegistry] = useState<StockRegistry | null>(null);
   const [owner, setOwner] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [started, setStarted] = useState(false);
@@ -47,18 +49,27 @@ export function BasketPurchase({ basket, amount, registry, availableBalance, onS
     try {
       const address = wallet.account.address;
       await checkUsdcBalance(client, address, amount);
-      const plan = createBasketExecutionPlan(basket, amount, registry);
+      const freshRegistry = await tokenRegistryCache.fresh(basket.provider ?? 'xstocks');
+      abort.current.signal.throwIfAborted();
+      assertBasketRegistryUnchanged(basket, amount, registry, freshRegistry);
+      const plan = createBasketExecutionPlan(basket, amount, freshRegistry);
       const orders: JupiterOrder[] = [];
       for (const leg of plan) { abort.current.signal.throwIfAborted(); orders.push(await getLegOrder(leg, address)); }
       if (client.wallet.getState().connected?.account.address !== address) throw new Error('Wallet changed. Review again.');
-      latest.current = plan; setLegs(plan); setOwner(address); setQuotes(orders);
+      latest.current = plan; setLegs(plan); setOwner(address); setReviewedRegistry(freshRegistry); setQuotes(orders);
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not get Jupiter quotes.'); }
     finally { lock.current = false; setBusy(false); }
   }
   async function run(ids: string[]) {
-    if (lock.current || !sameWallet || unknown || !owner) return;
-    lock.current = true; setBusy(true); setStarted(true); onStarted(); setError(undefined);
+    if (lock.current || !sameWallet || unknown || !owner || !reviewedRegistry) return;
+    lock.current = true; setBusy(true); setError(undefined);
+    let checked = false;
     try {
+      const freshRegistry = await tokenRegistryCache.fresh(basket.provider ?? 'xstocks');
+      abort.current.signal.throwIfAborted();
+      assertBasketRegistryUnchanged(basket, amount, reviewedRegistry, freshRegistry);
+      checked = true;
+      setStarted(true); onStarted();
       await checkUsdcBalance(client, owner, latest.current.filter(l => ids.includes(l.id) && l.status !== 'success').reduce((sum, l) => sum + l.inputAmount, 0n));
       for (const id of ids) {
         abort.current.signal.throwIfAborted();
@@ -71,7 +82,10 @@ export function BasketPurchase({ basket, amount, registry, availableBalance, onS
           if (result.outcomeUnknown || result.status === 'failed') break;
         } catch (e) { update({ ...leg, status: 'failed', error: e instanceof Error ? e.message : 'Could not get a quote.' }); break; }
       }
-    } catch (e) { setError(e instanceof Error ? e.message : 'Execution stopped.'); }
+    } catch (e) {
+      if (!started && !checked) setQuotes([]);
+      setError(e instanceof Error ? e.message : 'Execution stopped.');
+    }
     finally { lock.current = false; setBusy(false); }
   }
   async function check(leg: ExecutionLeg) {
@@ -91,7 +105,7 @@ export function BasketPurchase({ basket, amount, registry, availableBalance, onS
       <p className="small muted">{started ? `${completed} / ${legs.length} completed` : `Total investment: ${formatUsdc(amount)} USDC · ${legs.length} independent swaps`}</p>
       {(busy || unknown) && <p role="status" className="small muted">Keep this page open. Navigation is paused until the current execution is resolved.</p>}{started && <progress aria-label="Basket completion" value={completed} max={legs.length} />}
       {legs.map((leg, i) => {
-        const stock = registry.stocks.find(s => s.mint === leg.outputMint)!;
+        const stock = (reviewedRegistry ?? registry).stocks.find(s => s.mint === leg.outputMint)!;
         const received = leg.receivedAmount ?? leg.expectedOutputAmount ?? BigInt(quotes[i].outAmount!);
         return <div className="rebalance-leg" key={leg.id}><div><strong>{leg.status === 'success' ? '✓ ' : ''}{leg.outputSymbol}</strong><p className="small">{formatUsdc(leg.inputAmount)} USDC → {leg.status === 'success' && leg.receivedAmount === undefined ? 'Received amount unavailable' : `${(Number(received) / 10 ** stock.decimals).toLocaleString(undefined, { maximumFractionDigits: 8 })} tokens ${leg.status === 'success' ? 'received' : 'estimated'}`}</p><p className="small muted">{started ? labels[leg.status] : `Price impact: ${quotes[i].priceImpact === null ? 'Unavailable' : `${quotes[i].priceImpact}%`}`}</p>{leg.error && <ErrorNotice error={leg.error} />}{leg.status === 'success' && leg.signature && <a className="text-button small" href={`https://solscan.io/tx/${leg.signature}`} target="_blank" rel="noopener noreferrer">View on Solscan ↗</a>}</div>{leg.outcomeUnknown ? <button className="button secondary" disabled={busy} onClick={() => void check(leg)}>Check execution</button> : leg.status === 'failed' ? <button className="button secondary" disabled={busy || unknown || !sameWallet} onClick={() => void run([leg.id])}>Retry {leg.outputSymbol}</button> : null}</div>;
       })}

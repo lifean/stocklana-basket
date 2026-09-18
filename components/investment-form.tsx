@@ -1,12 +1,13 @@
 'use client';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { BasketAllocation } from './basket-allocation';
 import { BasketPurchase } from './basket-purchase';
 import { PreIpoMetrics } from './pre-ipo-metrics';
 import { PreIpoNotice } from './pre-ipo-notice';
 import { ProviderBadge, providerNames } from './provider-badge';
 import { calculateBasketPremium, formatSignedPercent } from '@/lib/pre-ipo';
-import type { PreIpoAsset, PreIpoRegistry } from '@/types/pre-ipo';
+import { tokenRegistryCache, type TokenRegistry } from '@/lib/token-registry-cache';
+import type { PreIpoAsset } from '@/types/pre-ipo';
 import { ErrorNotice } from './error-notice';
 import { address } from '@solana/kit';
 import { useClient } from '@solana/react';
@@ -28,6 +29,8 @@ export function InvestmentForm({ basket }: { basket: Basket }) {
   const { wallet: connected, restoring } = useWalletConnection(client);
   const owner = connected?.account.address;
   const [executionStarted, setExecutionStarted] = useState(false);
+  const executionActive = useRef(false);
+  const forceRefresh = useRef(false);
   const [amount, setAmount] = useState('100');
   const [preview, setPreview] = useState<bigint | null>(null);
   const [validation, setValidation] = useState<string | null>(null);
@@ -47,22 +50,45 @@ export function InvestmentForm({ basket }: { basket: Basket }) {
   }, [basket.id]);
   useEffect(() => {
     const controller = new AbortController();
-    async function load() {
+    const provider = basket.provider ?? 'xstocks';
+    let lastData: TokenRegistry | undefined;
+    let version = 0;
+    async function apply(data: TokenRegistry) {
+      const current = ++version;
+      setRegistry(data);
+      setPreIpoAssets(data.assets ?? []);
+      setFetchedAt(data.fetchedAt ?? null);
+      setDataError(null);
+      setLoading(true);
       try {
-        const data = await getJson<StockRegistry | PreIpoRegistry>(basket.provider === 'prestocks' ? '/api/prestocks' : basket.provider === 'tessera' ? '/api/tessera' : '/api/stocks', controller.signal);
-        if (controller.signal.aborted) return;
-        setRegistry(data);
-        if ('assets' in data) { setPreIpoAssets(data.assets); setFetchedAt(data.fetchedAt ?? null); }
-        const ids = 'assets' in data ? data.assets.map(s => s.mint) : data.stocks.map(s => s.mint);
+        const ids = (data.assets ?? data.stocks).map(s => s.mint);
         const livePrices = ids.length ? await getJson<Record<string, StockPrice>>(`/api/prices?ids=${ids.join(',')}`, controller.signal) : {};
-        if (!controller.signal.aborted) setPrices(livePrices);
+        if (!controller.signal.aborted && current === version && !executionActive.current) setPrices(livePrices);
       } catch (error) {
-        if (!controller.signal.aborted) setDataError(error instanceof Error ? error.message : 'Market data is unavailable.');
-      } finally { if (!controller.signal.aborted) setLoading(false); }
+        if (!controller.signal.aborted && current === version && !executionActive.current) setDataError(error instanceof Error ? error.message : 'Market data is unavailable.');
+      } finally {
+        if (!controller.signal.aborted && current === version && !executionActive.current) setLoading(false);
+      }
     }
-    void load();
-    return () => controller.abort();
-  }, [refresh, basket.provider]);
+    function update() {
+      if (controller.signal.aborted || executionActive.current) return;
+      const snapshot = tokenRegistryCache.read(provider);
+      if (snapshot.data && snapshot.data !== lastData) {
+        lastData = snapshot.data;
+        void apply(snapshot.data);
+      }
+      if (snapshot.error) {
+        setDataError(snapshot.error);
+        if (!snapshot.data) setLoading(false);
+      }
+    }
+    const unsubscribe = tokenRegistryCache.subscribe(update);
+    update();
+    const force = forceRefresh.current;
+    forceRefresh.current = false;
+    void tokenRegistryCache.load(provider, force).catch(() => { /* The cache publishes errors. */ });
+    return () => { controller.abort(); unsubscribe(); };
+  }, [refresh, basket.provider, basket.id]);
   useEffect(() => {
     if (!owner) return;
     const controller = new AbortController();
@@ -83,7 +109,7 @@ export function InvestmentForm({ basket }: { basket: Basket }) {
   const weighted = calculateBasketPremium(preIpoAssets, basket.assets, prices);
   const allocations = preview !== null ? allocateUsdc(preview, basket.assets) : [];
   function updateAmount(value: string) { setAmount(value); setPreview(null); setValidation(null); }
-  function refreshData() { setLoading(true); setDataError(null); setRegistry(null); setPreIpoAssets([]); setFetchedAt(null); setPrices({}); setRefresh(n => n + 1); }
+  function refreshData() { forceRefresh.current = true; setLoading(true); setDataError(null); setRegistry(null); setPreIpoAssets([]); setFetchedAt(null); setPrices({}); setRefresh(n => n + 1); }
   const overview = <><span className="eyebrow">MAKE IT YOURS</span><h2>Start with USDC</h2>
     <form id={formId} onSubmit={event => { event.preventDefault(); try { const value = parseUsdc(amount); setValidation(null); setPreview(value); } catch (error) { setPreview(null); setValidation((error as Error).message); } }}>
       <fieldset disabled={executionStarted}><label htmlFor="investment-amount">Investment Amount</label><div className="amount-field"><input id="investment-amount" inputMode="decimal" autoComplete="off" value={amount} onChange={e => updateAmount(e.target.value)} aria-invalid={!!validation} aria-describedby={validation ? 'amount-error' : undefined} /><span>USDC</span></div>
@@ -110,7 +136,7 @@ export function InvestmentForm({ basket }: { basket: Basket }) {
     </div>
     <section className="panel investment-panel" aria-label="Basket investment" tabIndex={0}>
       <div className="investment-overview">{overview}</div>
-      {canReview && preview !== null && registry ? <BasketPurchase availableBalance={balance?.amount ?? null} onStarted={() => setExecutionStarted(true)} key={`${basket.id}:${preview}`} basket={basket} amount={preview} registry={registry} previewContent={previewContent} /> : <>
+      {canReview && preview !== null && registry ? <BasketPurchase availableBalance={balance?.amount ?? null} onStarted={() => { executionActive.current = true; setExecutionStarted(true); }} key={`${basket.id}:${preview}`} basket={basket} amount={preview} registry={registry} previewContent={previewContent} /> : <>
         {previewContent && <div className="investment-details">{previewContent}</div>}
         <div className="investment-actions"><button className="button primary full" type="submit" form={formId} disabled={executionStarted}>Preview Investment <span>→</span></button></div>
       </>}

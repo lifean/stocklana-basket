@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createBasketExecutionPlan } from '../lib/execution/basket.ts';
+import { assertBasketRegistryUnchanged, createBasketExecutionPlan } from '../lib/execution/basket.ts';
 import { baskets } from '../lib/baskets.ts';
 import { USDC_MINT } from '../lib/amounts.ts';
 import { friendlyError, safeErrorDetail } from '../lib/errors.ts';
@@ -22,4 +22,16 @@ test('normal error UX hides raw provider detail and redacts service URLs', () =>
   assert.match(friendlyError('Insufficient SOL balance'), /Not enough SOL/);
   assert.match(friendlyError('Transaction blockhash expired'), /Quote expired/);
   assert.equal(safeErrorDetail('Failed https://rpc.example/?api-key=secret'), 'Failed [service URL]');
+});
+
+test('cached basket identities must still match fresh tradable mints and decimals', () => {
+  const basket = baskets[0];
+  assert.doesNotThrow(() => assertBasketRegistryUnchanged(basket, 100_000_000n, registry, structuredClone(registry)));
+  for (const change of [{ mint: 'So11111111111111111111111111111111111111112' }, { decimals: 9 }, { isVerified: false }]) {
+    const fresh = structuredClone(registry);
+    Object.assign(fresh.stocks[0], change);
+    assert.throws(() => assertBasketRegistryUnchanged(basket, 100_000_000n, registry, fresh));
+  }
+  assert.throws(() => assertBasketRegistryUnchanged(basket, 100_000_000n, registry, { ...registry, stocks: registry.stocks.slice(1) }));
+  assert.throws(() => assertBasketRegistryUnchanged(basket, 100_000_000n, registry, { ...registry, unavailable: [{ symbol: 'NVDAx', reason: 'ambiguous' }] }));
 });

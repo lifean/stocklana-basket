@@ -15,3 +15,15 @@ export function createBasketExecutionPlan(basket: Basket, amount: bigint, regist
     return { id: `${basket.id}-${asset.symbol}`, inputMint: USDC_MINT, outputMint: matches[0].mint, inputSymbol: 'USDC', outputSymbol: asset.symbol, inputAmount: amounts[i], status: 'idle' };
   });
 }
+
+export function assertBasketRegistryUnchanged(basket: Basket, amount: bigint, reviewed: StockRegistry, fresh: StockRegistry): void {
+  const before = createBasketExecutionPlan(basket, amount, reviewed);
+  const after = createBasketExecutionPlan(basket, amount, fresh);
+  for (let i = 0; i < before.length; i++) {
+    const asset = basket.assets[i];
+    const matches = (stock: StockRegistry['stocks'][number]) => stock.symbol === asset.symbol && (stock.provider ?? 'xstocks') === (asset.provider ?? 'xstocks');
+    if (before[i].outputMint !== after[i].outputMint || reviewed.stocks.find(matches)!.decimals !== fresh.stocks.find(matches)!.decimals) {
+      throw new Error('Basket token data changed. Refresh market data and review live quotes again.');
+    }
+  }
+}
