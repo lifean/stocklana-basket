@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useClient } from '@solana/react';
 import { useConnectedWallet } from '@solana/kit-plugin-wallet/react';
 import type { AppClient } from '@/lib/solana/client';
@@ -13,7 +13,7 @@ import { applyExecutionResult, checkUsdcBalance, executeLeg, getLegOrder, submit
 import { formatUsdc } from '@/lib/amounts';
 import { ErrorNotice } from './error-notice';
 const labels = { idle: 'Pending', quoting: 'Getting quote', 'awaiting-signature': 'Waiting for signature…', executing: 'Executing', success: 'Completed', failed: 'Failed' };
-export function BasketPurchase({ basket, amount, registry, availableBalance, onStarted }: { availableBalance: bigint | null; onStarted: () => void; basket: Basket; amount: bigint; registry: StockRegistry }) {
+export function BasketPurchase({ basket, amount, registry, availableBalance, onStarted, previewContent }: { previewContent: ReactNode; availableBalance: bigint | null; onStarted: () => void; basket: Basket; amount: bigint; registry: StockRegistry }) {
   const client = useClient<AppClient>();
   const wallet = useConnectedWallet(client);
   const [legs, setLegs] = useState<ExecutionLeg[]>([]);
@@ -82,10 +82,12 @@ export function BasketPurchase({ basket, amount, registry, availableBalance, onS
     catch (e) { setError(e instanceof Error ? e.message : 'Execution outcome is unknown.'); }
     finally { lock.current = false; setBusy(false); }
   }
-  return <div className="basket-execution">
-    {!started && <><button className="button secondary full" disabled={busy || !wallet} onClick={review}>{busy ? 'Getting Jupiter quotes…' : 'Review live quotes'}</button>{!wallet && <p className="small muted">Connect your wallet above to buy this basket.</p>}</>}
+  return <>
+    <div className="investment-details">
+    {!quotes.length && previewContent}
+    <div className="basket-execution" aria-live="polite">
     {error && <ErrorNotice error={error} />}
-    {!!quotes.length && <><h3>{started ? completed === legs.length ? 'Portfolio Created' : legs.some(l => l.status === 'failed') ? completed ? 'Basket partially completed' : 'Basket needs attention' : 'Building your portfolio' : 'Review component trades'}</h3>
+    {!!quotes.length && <><div className="trade-review-heading"><h3>{started ? completed === legs.length ? 'Portfolio Created' : legs.some(l => l.status === 'failed') ? completed ? 'Basket partially completed' : 'Basket needs attention' : 'Building your portfolio' : 'Review component trades'}</h3>{!started && <button className="text-button small" disabled={busy || !wallet} onClick={review}>Refresh quotes</button>}</div>
       <p className="small muted">{started ? `${completed} / ${legs.length} completed` : `Total investment: ${formatUsdc(amount)} USDC · ${legs.length} independent swaps`}</p>
       {(busy || unknown) && <p role="status" className="small muted">Keep this page open. Navigation is paused until the current execution is resolved.</p>}{started && <progress aria-label="Basket completion" value={completed} max={legs.length} />}
       {legs.map((leg, i) => {
@@ -93,9 +95,16 @@ export function BasketPurchase({ basket, amount, registry, availableBalance, onS
         const received = leg.receivedAmount ?? leg.expectedOutputAmount ?? BigInt(quotes[i].outAmount!);
         return <div className="rebalance-leg" key={leg.id}><div><strong>{leg.status === 'success' ? '✓ ' : ''}{leg.outputSymbol}</strong><p className="small">{formatUsdc(leg.inputAmount)} USDC → {leg.status === 'success' && leg.receivedAmount === undefined ? 'Received amount unavailable' : `${(Number(received) / 10 ** stock.decimals).toLocaleString(undefined, { maximumFractionDigits: 8 })} tokens ${leg.status === 'success' ? 'received' : 'estimated'}`}</p><p className="small muted">{started ? labels[leg.status] : `Price impact: ${quotes[i].priceImpact === null ? 'Unavailable' : `${quotes[i].priceImpact}%`}`}</p>{leg.error && <ErrorNotice error={leg.error} />}{leg.status === 'success' && leg.signature && <a className="text-button small" href={`https://solscan.io/tx/${leg.signature}`} target="_blank" rel="noopener noreferrer">View on Solscan ↗</a>}</div>{leg.outcomeUnknown ? <button className="button secondary" disabled={busy} onClick={() => void check(leg)}>Check execution</button> : leg.status === 'failed' ? <button className="button secondary" disabled={busy || unknown || !sameWallet} onClick={() => void run([leg.id])}>Retry {leg.outputSymbol}</button> : null}</div>;
       })}
-      {!started && <><p className="small muted">Each swap requires your approval. Fresh executable quotes are requested before signing; outputs may change. Review the amounts in your wallet.</p><button className="button primary full" disabled={busy || !sameWallet || availableBalance === null || availableBalance < amount} onClick={() => void run(legs.map(l => l.id))}>Buy Basket</button></>}
-      {started && legs.some(l => l.status === 'idle') && <button className="button primary full" disabled={busy || unknown || !sameWallet} onClick={() => void run(legs.filter(l => l.status === 'idle').map(l => l.id))}>Continue pending trades</button>}
-      {started && <><p className="small muted">Keep this page open until execution is resolved. Progress is held only in this tab. After a reload, review real wallet holdings before buying again; a selected strategy is not proof of purchase.</p><Link className="button secondary full" href="/portfolio" onClick={e => { if (busy || unknown) e.preventDefault(); }} aria-disabled={busy || unknown}>View Portfolio</Link></>}
+      {!started && <p className="small muted trade-review-note">Each swap requires your approval. Fresh executable quotes are requested before signing; outputs may change. Review the amounts in your wallet.</p>}
+      {started && <p className="small muted trade-review-note">Keep this page open until execution is resolved. Progress is held only in this tab. After a reload, review real wallet holdings before buying again; a selected strategy is not proof of purchase.</p>}
     </>}
-  </div>;
+    </div>
+    </div>
+    <div className="investment-actions">
+      <div className="investment-action-summary small"><span>{started ? `${completed} / ${legs.length} completed` : 'Total investment'}</span><strong>{formatUsdc(amount)} USDC</strong></div>
+      {!started && (!quotes.length ? <><button className="button primary full" disabled={busy || !wallet} onClick={review}>{busy ? 'Getting Jupiter quotes…' : 'Review live quotes'}</button>{!wallet && <p className="small muted">Connect your wallet above to buy this basket.</p>}</> : <button className="button primary full" disabled={busy || !sameWallet || availableBalance === null || availableBalance < amount} onClick={() => void run(legs.map(l => l.id))}>Buy Basket</button>)}
+      {started && legs.some(l => l.status === 'idle') && <button className="button primary full" disabled={busy || unknown || !sameWallet} onClick={() => void run(legs.filter(l => l.status === 'idle').map(l => l.id))}>Continue pending trades</button>}
+      {started && <Link className="button secondary full" href="/portfolio" onClick={e => { if (busy || unknown) e.preventDefault(); }} aria-disabled={busy || unknown}>View Portfolio</Link>}
+    </div>
+  </>;
 }

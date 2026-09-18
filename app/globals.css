@@ -175,3 +175,36 @@ input, .preview-total, .preview-leg, table, .portfolio-summary h2 { font-variant
  .basket-heading h1, .portfolio-title { font-size: 30px; }.panel { padding: 20px; }.basket-heading .eyebrow { font-size: 10px; }.preipo-metrics dl > div { padding: 10px; }.preipo-metrics > .provider-badge + dl { grid-template-columns: 1fr; }.preipo-metrics dd { font-size: 13px; }.balance-line { flex-wrap: wrap; }.portfolio-positions { padding: 16px; }
 }
 @media (prefers-reduced-motion: reduce) { .strategy-card, .button { transition: none; }.strategy-card:hover { transform: none; } }
+
+/* One investment workspace: details scroll, actions stay within reach. */
+.basket-strategy { display: grid; gap: 20px; min-width: 0; }
+.private-market-details summary { cursor: pointer; font-weight: 600; font-size: 17px; }
+.private-market-details summary span { display: block; font-weight: 400; margin: 8px 0 0; }
+.private-market-details[open] summary { margin-bottom: 20px; }
+.investment-panel { --investment-padding: 24px; position: sticky; top: 16px; padding: 0; overflow-y: auto; scroll-padding-block: 20px 170px; max-height: max(360px, calc(100dvh - 340px)); scrollbar-gutter: stable; }
+.investment-overview, .investment-details { padding: var(--investment-padding); overflow-wrap: anywhere; }
+.investment-details { padding-top: 0; }
+.investment-panel h2 { margin-bottom: 18px; }
+.investment-panel .balance-line { margin-bottom: 12px; }
+.investment-panel .amount-field > span { flex-shrink: 0; white-space: nowrap; }
+.investment-panel .market-status { margin-top: 10px; }
+.investment-panel .preview { margin-top: 0; padding-top: 16px; }
+.investment-panel .preview h3 { margin: 8px 0 12px; }
+.investment-panel .preview-leg, .investment-panel .rebalance-leg { padding: 10px 0; }
+.investment-panel .preview-total { padding: 12px 0; }
+.investment-panel .preview > p:last-child { margin-bottom: 0; }
+.trade-review-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; border-top: 1px solid var(--line); margin-top: 16px; padding-top: 16px; }
+.trade-review-heading h3 { margin: 0 0 12px; font-size: 21px; }
+.trade-review-heading .text-button { flex-shrink: 0; }
+.trade-review-note { margin: 14px 0 0; }
+.investment-actions { position: sticky; bottom: 0; z-index: 1; display: grid; gap: 10px; padding: 16px var(--investment-padding); background: var(--surface); border-top: 1px solid var(--line); border-radius: 0 0 10px 10px; }
+.investment-actions .full { justify-content: center; }
+.investment-actions p { margin: 0; }
+.investment-action-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.investment-action-summary strong { white-space: nowrap; }
+@media (max-width: 850px) {
+ .investment-panel { --investment-padding: 20px; position: static; max-height: none; order: -1; overflow: visible; scrollbar-gutter: auto; }
+ .investment-actions { position: fixed; bottom: 0; left: 0; right: 0; z-index: 10; border-radius: 0; padding-bottom: calc(16px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 20px #182d2910; }
+ .basket-page:has(.investment-panel) { padding-bottom: calc(210px + env(safe-area-inset-bottom)); }
+ .trade-review-heading { flex-wrap: wrap; gap: 0 12px; }
+}
