@@ -1,14 +1,12 @@
 'use client';
-import { useState, useSyncExternalStore } from 'react';
+import { useState } from 'react';
 import { useClient } from '@solana/react';
 import { useConnect, useConnectedWallet, useDisconnect, useWallets, useWalletStatus } from '@solana/kit-plugin-wallet/react';
 import type { AppClient } from '@/lib/solana/client';
-const subscribe = () => () => {};
-const clientSnapshot = () => true;
-const serverSnapshot = () => false;
+import { useHydrated } from '@/lib/use-hydrated';
 export function WalletButton() {
   // Wallet discovery is browser-owned; keep SSR and initial hydration identical.
-  const hydrated = useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
+  const hydrated = useHydrated();
   return hydrated ? <WalletControl /> : <button className="button secondary" disabled>Restoring wallet…</button>;
 }
 function WalletControl() {

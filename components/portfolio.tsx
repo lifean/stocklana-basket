@@ -4,7 +4,7 @@ import { ProviderBadge } from './provider-badge';
 import { ErrorNotice } from './error-notice';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useClient } from '@solana/react';
-import { useConnectedWallet } from '@solana/kit-plugin-wallet/react';
+import { useWalletConnection } from '@/lib/solana/use-wallet-connection';
 import { isTransactionModifyingSigner } from '@solana/kit';
 import type { AppClient } from '@/lib/solana/client';
 import type { Basket } from '@/types/basket';
@@ -27,7 +27,7 @@ const labels = { idle: 'Pending', quoting: 'Getting quote', 'awaiting-signature'
 type DataState = { key: string; snapshot: PortfolioSnapshot | null; error: string | null };
 export function Portfolio() {
   const client = useClient<AppClient>();
-  const wallet = useConnectedWallet(client);
+  const { wallet, restoring } = useWalletConnection(client);
   const owner = wallet?.account.address;
   const basketId = useSyncExternalStore(subscribeBasket, activeBasketId, () => null);
   const basket = baskets.find(b => b.id === basketId) ?? null;
@@ -115,7 +115,8 @@ export function Portfolio() {
   const completed = run ? [...run.sells, ...run.buys].filter(l => l.status === 'success').length : 0;
   const heading = run ? run.phase === 'success' ? 'Rebalance trades completed' : run.phase === 'partial' || (['paused', 'sell-review'].includes(run.phase) && completed > 0) ? 'Rebalance partially completed' : ({ selling: 'Selling overweight positions', 'sell-review': 'Sell phase needs attention', refreshing: 'Refreshing balances and prices', buying: 'Buying underweight positions', paused: 'Rebalance paused', failed: 'Rebalance did not complete' } as Record<string, string>)[run.phase] : '';
   return <main className="basket-page"><div className="section-heading"><div><span className="eyebrow">YOUR WALLET, YOUR ASSETS</span><h1 className="portfolio-title">Your Portfolio</h1><p className="muted">{basket ? `Target strategy: ${basket.name}` : 'Supported token holdings'}</p></div><button className="button secondary" disabled={!owner || busy || unknown} onClick={() => { setManualLoading(true); setPreview(null); setError(null); setRefreshCount(n => n + 1); }}>Refresh</button></div>
-    {!owner && <section className="panel"><h2>Connect your wallet</h2><p className="muted">Connect above to read your real supported token balances on Solana mainnet.</p></section>}
+    {restoring && <p className="muted" role="status">Restoring wallet…</p>}
+    {!restoring && !owner && <section className="panel"><h2>Connect your wallet</h2><p className="muted">Connect above to read your real supported token balances on Solana mainnet.</p></section>}
     {loading && <div role="status"><p className="muted">Reading token accounts and current prices…</p><div className="loading-skeleton" aria-hidden="true"><span /><span /><span /></div></div>}
     {visible?.error && <ErrorNotice error={visible.error} />}
     {snapshot && <><section className="panel portfolio-summary"><div><span className="eyebrow">TOTAL STOCK VALUE</span><h2>{snapshot.totalValue === null ? 'Unavailable' : money(snapshot.totalValue)}</h2>{snapshot.totalValue === null && <p className="small muted">Priced holdings: {money(snapshot.pricedValue)}. One or more stocks cannot be fully valued.</p>}</div><div><span className="eyebrow">WEIGHTED 24H TOKEN CHANGE</span><h2>{snapshot.weightedChange24h === null ? '—' : `${snapshot.weightedChange24h > 0 ? '+' : ''}${snapshot.weightedChange24h.toFixed(2)}%`}</h2><p className="small muted">Current-holdings price change, not portfolio P&amp;L.</p></div></section>

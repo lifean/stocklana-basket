@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useClient } from '@solana/react';
-import { useConnectedWallet } from '@solana/kit-plugin-wallet/react';
+import { useWalletConnection } from '@/lib/solana/use-wallet-connection';
 import type { AppClient } from '@/lib/solana/client';
 import type { Basket } from '@/types/basket';
 import type { StockRegistry } from '@/types/stock';
@@ -15,7 +15,7 @@ import { ErrorNotice } from './error-notice';
 const labels = { idle: 'Pending', quoting: 'Getting quote', 'awaiting-signature': 'Waiting for signature…', executing: 'Executing', success: 'Completed', failed: 'Failed' };
 export function BasketPurchase({ basket, amount, registry, availableBalance, onStarted, previewContent }: { previewContent: ReactNode; availableBalance: bigint | null; onStarted: () => void; basket: Basket; amount: bigint; registry: StockRegistry }) {
   const client = useClient<AppClient>();
-  const wallet = useConnectedWallet(client);
+  const { wallet, restoring } = useWalletConnection(client);
   const [legs, setLegs] = useState<ExecutionLeg[]>([]);
   const [quotes, setQuotes] = useState<JupiterOrder[]>([]);
   const [owner, setOwner] = useState<string>();
@@ -102,7 +102,7 @@ export function BasketPurchase({ basket, amount, registry, availableBalance, onS
     </div>
     <div className="investment-actions">
       <div className="investment-action-summary small"><span>{started ? `${completed} / ${legs.length} completed` : 'Total investment'}</span><strong>{formatUsdc(amount)} USDC</strong></div>
-      {!started && (!quotes.length ? <><button className="button primary full" disabled={busy || !wallet} onClick={review}>{busy ? 'Getting Jupiter quotes…' : 'Review live quotes'}</button>{!wallet && <p className="small muted">Connect your wallet above to buy this basket.</p>}</> : <button className="button primary full" disabled={busy || !sameWallet || availableBalance === null || availableBalance < amount} onClick={() => void run(legs.map(l => l.id))}>Buy Basket</button>)}
+      {!started && (!quotes.length ? <><button className="button primary full" disabled={busy || !wallet} onClick={review}>{busy ? 'Getting Jupiter quotes…' : 'Review live quotes'}</button>{restoring ? <p className="small muted" role="status">Restoring wallet…</p> : !wallet && <p className="small muted">Connect your wallet above to buy this basket.</p>}</> : <button className="button primary full" disabled={busy || !sameWallet || availableBalance === null || availableBalance < amount} onClick={() => void run(legs.map(l => l.id))}>Buy Basket</button>)}
       {started && legs.some(l => l.status === 'idle') && <button className="button primary full" disabled={busy || unknown || !sameWallet} onClick={() => void run(legs.filter(l => l.status === 'idle').map(l => l.id))}>Continue pending trades</button>}
       {started && <Link className="button secondary full" href="/portfolio" onClick={e => { if (busy || unknown) e.preventDefault(); }} aria-disabled={busy || unknown}>View Portfolio</Link>}
     </div>

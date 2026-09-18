@@ -9,7 +9,7 @@ import type { PreIpoAsset, PreIpoRegistry } from '@/types/pre-ipo';
 import { ErrorNotice } from './error-notice';
 import { address } from '@solana/kit';
 import { useClient } from '@solana/react';
-import { useConnectedWallet } from '@solana/kit-plugin-wallet/react';
+import { useWalletConnection } from '@/lib/solana/use-wallet-connection';
 import type { AppClient } from '@/lib/solana/client';
 import type { Basket } from '@/types/basket';
 import type { StockRegistry, StockPrice } from '@/types/stock';
@@ -24,7 +24,7 @@ async function getJson<T>(url: string, signal: AbortSignal): Promise<T> {
 export function InvestmentForm({ basket, strategy }: { basket: Basket; strategy: ReactNode }) {
   const formId = useId();
   const client = useClient<AppClient>();
-  const connected = useConnectedWallet(client);
+  const { wallet: connected, restoring } = useWalletConnection(client);
   const owner = connected?.account.address;
   const [executionStarted, setExecutionStarted] = useState(false);
   const [amount, setAmount] = useState('100');
@@ -87,7 +87,7 @@ export function InvestmentForm({ basket, strategy }: { basket: Basket; strategy:
     <form id={formId} onSubmit={event => { event.preventDefault(); try { const value = parseUsdc(amount); setValidation(null); setPreview(value); } catch (error) { setPreview(null); setValidation((error as Error).message); } }}>
       <fieldset disabled={executionStarted}><label htmlFor="investment-amount">Investment Amount</label><div className="amount-field"><input id="investment-amount" inputMode="decimal" autoComplete="off" value={amount} onChange={e => updateAmount(e.target.value)} aria-invalid={!!validation} aria-describedby={validation ? 'amount-error' : undefined} /><span>USDC</span></div>
       <div className="quick-select">{[25, 50, 100].map(value => <button type="button" className={amount === String(value) ? 'selected' : ''} key={value} onClick={() => updateAmount(String(value))}>${value}</button>)}</div>
-      <div className="balance-line small muted">{owner ? <><span>{balance?.error ? 'USDC balance unavailable. Check your RPC connection.' : balance?.amount !== null && balance?.amount !== undefined ? `Wallet balance: ${formatUsdc(balance.amount)} USDC` : 'Loading USDC balance…'}</span><button className="text-button" type="button" onClick={() => { setBalanceState(null); setBalanceRefresh(n => n + 1); }}>Refresh</button></> : 'Connect your wallet to see your USDC balance. You can preview without connecting.'}</div>
+      <div className="balance-line small muted">{restoring ? <span role="status">Restoring wallet…</span> : owner ? <><span>{balance?.error ? 'USDC balance unavailable. Check your RPC connection.' : balance?.amount !== null && balance?.amount !== undefined ? `Wallet balance: ${formatUsdc(balance.amount)} USDC` : 'Loading USDC balance…'}</span><button className="text-button" type="button" onClick={() => { setBalanceState(null); setBalanceRefresh(n => n + 1); }}>Refresh</button></> : 'Connect your wallet to see your USDC balance. You can preview without connecting.'}</div>
       {validation && <p role="alert" className="error" id="amount-error">{validation}</p>}
       {balance?.amount === 0n && !executionStarted && <p className="small muted">Your wallet has no USDC. Add mainnet USDC and some SOL for network fees to invest.</p>}
       {insufficient && <p role="alert" className="error">Insufficient USDC balance for this investment. You can still review the allocation.</p>}

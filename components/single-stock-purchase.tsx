@@ -2,7 +2,7 @@
 import { ErrorNotice } from './error-notice';
 import { useEffect, useRef, useState } from 'react';
 import { useClient } from '@solana/react';
-import { useConnectedWallet } from '@solana/kit-plugin-wallet/react';
+import { useWalletConnection } from '@/lib/solana/use-wallet-connection';
 import { isTransactionModifyingSigner } from '@solana/kit';
 import type { AppClient } from '@/lib/solana/client';
 import type { StockRegistry } from '@/types/stock';
@@ -19,7 +19,7 @@ function tokenAmount(amount: bigint, decimals: number) {
 }
 export function SingleStockPurchase() {
   const client = useClient<AppClient>();
-  const wallet = useConnectedWallet(client);
+  const { wallet, restoring } = useWalletConnection(client);
   const [registry, setRegistry] = useState<StockRegistry | null>(null);
   const [registryError, setRegistryError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -102,7 +102,7 @@ export function SingleStockPurchase() {
     {registryError && <ErrorNotice error={registryError} />}
     {(issue || (registry && !stock)) && <p role="alert" className="error">{issue?.reason === 'ambiguous' ? 'NVDAx has ambiguous verified mints. Buying is disabled.' : 'Verified NVDAx is unavailable.'}</p>}
     {(registryError || issue) && <button className="text-button" disabled={blocked} onClick={() => { setRegistry(null); setRegistryError(null); setReload(n => n + 1); }}>Refresh stock registry</button>}
-    {!wallet && <p className="muted small">Connect your Wallet Standard wallet using the button above.</p>}
+    {restoring ? <p className="muted small" role="status">Restoring wallet…</p> : !wallet && <p className="muted small">Connect your Wallet Standard wallet using the button above.</p>}
     {wallet && !capable && <p role="alert" className="error">This wallet does not support signing without sending. Use a compatible Wallet Standard wallet.</p>}
     <label htmlFor="single-amount">Total investment · USDC</label>
     <div className="amount-field"><input id="single-amount" inputMode="decimal" value={amount} disabled={blocked} onChange={event => { setAmount(event.target.value); setOrder(null); setLeg(null); setError(null); }} /><span>USDC</span></div>
