@@ -135,6 +135,21 @@ input, .preview-total, .preview-leg, table, .portfolio-summary h2 { font-variant
 .allocations dt { display: flex; gap: 9px; align-items: center; font-weight: 500; }
 .allocations dd { font-weight: 600; font-variant-numeric: tabular-nums; }
 .allocation-dot { width: 6px; height: 6px; border-radius: 2px; flex-shrink: 0; }
+.home-allocations > div { align-items: flex-start; gap: 12px; }
+.home-allocations dt { align-items: flex-start; min-width: 0; }
+.home-allocations dd { padding-top: 4px; flex-shrink: 0; }
+.home-token-icon { display: grid; place-items: center; width: 28px; height: 28px; flex-shrink: 0; border-radius: 50%; overflow: hidden; background: var(--soft); color: var(--green); font-size: 12px; font-weight: 600; margin-top: 2px; }
+.home-token-icon img { width: 28px; height: 28px; object-fit: contain; }
+.home-token-info { display: flex; flex-direction: column; min-width: 0; }
+.home-token-name { line-height: 24px; overflow-wrap: anywhere; }
+.token-address-control { display: block; position: relative; width: fit-content; max-width: 100%; }
+.token-address-copy { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 3px 5px; margin-left: -5px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; white-space: nowrap; }
+.token-address-copy svg { flex-shrink: 0; }
+.token-address-copy:hover, .token-address-copy:focus-visible { background: var(--soft); color: var(--green); }
+.token-address-copy[data-copied="true"] { color: var(--green); }
+.token-address-placeholder { display: flex; align-items: center; min-height: 30px; color: var(--muted); font-size: 11px; }
+.token-copy-feedback:not(:empty) { position: absolute; left: 0; bottom: calc(100% + 4px); z-index: 2; width: max-content; max-width: 180px; padding: 5px 8px; border-radius: 5px; background: var(--ink); color: white; box-shadow: var(--shadow); font-size: 11px; line-height: 1.5; pointer-events: none; }
+@media (pointer: coarse) { .token-address-copy, .token-address-placeholder { min-height: 44px; } }
 .disclaimer, footer { font-size: 12px; line-height: 1.7; }
 .disclaimer { margin: 28px 0 36px; }
 .basket-page { padding-top: 28px; }
