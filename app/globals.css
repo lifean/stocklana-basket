@@ -163,7 +163,6 @@ input, .preview-total, .preview-leg, table, .portfolio-summary h2 { font-variant
 .target-token-list > div { align-items: flex-start; gap: 12px; }
 .target-token-list dt { align-items: flex-start; gap: 10px; min-width: 0; }
 .target-token-list dd { flex-shrink: 0; padding-top: 4px; }
-.target-token-list .token-description { margin-top: 0; line-height: 1.6; overflow-wrap: anywhere; }
 .asset-icon { border-radius: 7px; }
 .small { font-size: 13px; }
 .amount-field { border-radius: 7px; padding: 12px 14px; background: var(--paper); }

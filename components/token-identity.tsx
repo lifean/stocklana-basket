@@ -19,7 +19,7 @@ function TokenIcon({ stock, name }: { stock: StockAsset | null; name: string }) 
   </span>;
 }
 
-export function TokenIdentity({ asset, registry, description }: { asset: BasketAsset; registry: StockRegistry | null | undefined; description?: string }) {
+export function TokenIdentity({ asset, registry }: { asset: BasketAsset; registry: StockRegistry | null | undefined }) {
   const provider = asset.provider ?? 'xstocks';
   const matches = registry?.stocks.filter(stock => stock.symbol === asset.symbol && (stock.provider ?? 'xstocks') === provider) ?? [];
   const unavailable = registry?.unavailable.some(issue => issue.symbol === asset.symbol && (issue.provider ?? provider) === provider);
@@ -28,7 +28,6 @@ export function TokenIdentity({ asset, registry, description }: { asset: BasketA
     <TokenIcon stock={stock} name={asset.stockSymbol} />
     <span className="home-token-info">
       <span className="home-token-name">{asset.stockSymbol}</span>
-      {description && <small className="token-description">{description}</small>}
       {stock ? <TokenAddressCopy key={stock.mint} mint={stock.mint} symbol={asset.symbol} /> : <span className="token-address-placeholder">{registry === undefined ? 'Loading address…' : 'Address unavailable'}</span>}
     </span>
   </>;
