@@ -6,7 +6,7 @@ import { TokenIcon } from './token-identity';
 
 const present = (n: number | null | undefined): n is number => n != null && Number.isFinite(n) && n >= 0;
 const dollars = (n: number) => n.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
-const price = (n: number | null | undefined) => present(n) ? dollars(n) : 'Unavailable';
+const price = (n: number | null | undefined) => present(n) ? dollars(n) : '-';
 
 export function PreIpoMetricsTable({ assets, prices, registry, provider }: {
   assets: PreIpoAsset[];
@@ -34,12 +34,12 @@ export function PreIpoMetricsTable({ assets, prices, registry, provider }: {
           const stock = registry?.stocks.find(stock => stock.mint === asset.mint && stock.provider === asset.provider) ?? null;
           return <tr key={asset.mint}>
             <th scope="row"><div className="private-market-token"><TokenIcon stock={stock} name={asset.name} /><span>{asset.name}<small>{asset.symbol}</small></span></div></th>
-            <td className="market-sector">{asset.sector || '—'}</td>
+            <td className="market-sector">{asset.sector || '-'}</td>
             <td>{price(asset.markPrice)}</td>
             {provider === 'prestocks' && <td>{price(asset.marketPrice)}</td>}
-            <td>{price(jupiterPrice)}</td><td>{formatPremium(premium)}</td>
+            <td>{price(jupiterPrice)}</td><td>{premium === null ? '-' : formatPremium(premium)}</td>
             <td>{price(asset.markValuation)}</td><td>{price(asset.impliedValuation)}</td>
-            <td>{formatSignedPercent(gap)}</td><td>{present(asset.holders) ? asset.holders.toLocaleString() : 'Unavailable'}</td>
+            <td>{gap === null ? '-' : formatSignedPercent(gap)}</td><td>{present(asset.holders) ? asset.holders.toLocaleString() : '-'}</td>
           </tr>;
         })}</tbody>
       </table>
