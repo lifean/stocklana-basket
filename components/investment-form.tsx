@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useId, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState } from 'react';
+import { BasketAllocation } from './basket-allocation';
 import { BasketPurchase } from './basket-purchase';
 import { PreIpoMetrics } from './pre-ipo-metrics';
 import { PreIpoNotice } from './pre-ipo-notice';
@@ -21,7 +22,7 @@ async function getJson<T>(url: string, signal: AbortSignal): Promise<T> {
   if (!response.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Could not load market data.');
   return data as T;
 }
-export function InvestmentForm({ basket, strategy }: { basket: Basket; strategy: ReactNode }) {
+export function InvestmentForm({ basket }: { basket: Basket }) {
   const formId = useId();
   const client = useClient<AppClient>();
   const { wallet: connected, restoring } = useWalletConnection(client);
@@ -104,7 +105,7 @@ export function InvestmentForm({ basket, strategy }: { basket: Basket; strategy:
     })}</div><div className="preview-total"><strong>Total</strong><strong>{formatUsdc(preview)} USDC</strong></div><p className="muted small">Indicative estimates using current USD prices and 1 USDC ≈ $1. These are token units, not a swap quote; fees, slippage, and issuer share ratios are not included.</p></div> : null;
   const canReview = preview !== null && registry && !loading && (!dataError || basket.provider === 'tessera' || basket.provider === 'prestocks') && !registry.unavailable.some(s => basket.assets.some(a => a.symbol === s.symbol));
   return <div className="basket-grid">
-    <div className="basket-strategy">{strategy}
+    <div className="basket-strategy"><BasketAllocation basket={basket} registry={registry ?? (loading ? undefined : null)} />
       {isPreIpo && <details className="panel private-market-details"><summary>Private Market Data<span className="small muted">Prices, valuations & provider details</span></summary>{fetchedAt && <p className="small muted">Sponsor data updated <time dateTime={new Date(fetchedAt).toISOString()}>{new Date(fetchedAt).toLocaleTimeString()}</time> · Refresh may use the 60-second cache.</p>}{preIpoAssets.map(asset => <PreIpoMetrics key={asset.mint} asset={asset} jupiterPrice={prices[asset.mint]?.usdPrice ?? null} />)}<p className="small muted">Marks are reference values, not guaranteed fair value. Premium and valuation differences are informational, not expected returns.</p>{isPreIpo && <><p><ProviderBadge provider={basket.provider} powered /></p><div className="weighted-premium"><strong>{basket.provider === 'tessera' ? 'Basket vs. Tessera Mark' : 'Basket vs. Mark'}</strong><p>{formatSignedPercent(basket.provider === 'tessera' && weighted.coveredBps !== 10000 ? null : weighted.value)}</p><p className="small muted">{basket.provider === 'prestocks' ? 'Weighted difference between current PreStocks token prices and PreStocks mark prices.' : 'Weighted difference between Jupiter on-chain market prices and Tessera mark prices.'}</p>{weighted.coveredBps < 10000 && <p className="small muted">{basket.provider === 'tessera' ? 'Unavailable until all components have valid prices.' : `Partial data: ${weighted.coveredBps / 100}% of target allocation covered; remaining weights are not rescaled.`} Missing: {weighted.excludedSymbols.join(', ')}.</p>}</div></>}<PreIpoNotice /></details>}
     </div>
     <section className="panel investment-panel" aria-label="Basket investment" tabIndex={0}>
