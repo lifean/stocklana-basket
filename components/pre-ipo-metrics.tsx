@@ -1,28 +1,49 @@
 import type { PreIpoAsset } from '@/types/pre-ipo';
+import type { StockPrice, StockRegistry } from '@/types/stock';
 import { calculatePremiumPercent, formatPremium, formatSignedPercent } from '@/lib/pre-ipo';
-import { ProviderBadge, providerNames } from './provider-badge';
+import { providerNames } from './provider-badge';
+import { TokenIcon } from './token-identity';
+
 const present = (n: number | null | undefined): n is number => n != null && Number.isFinite(n) && n >= 0;
 const dollars = (n: number) => n.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
-export function PreIpoMetrics({ asset, jupiterPrice, compact = false }: { asset: PreIpoAsset; jupiterPrice: number | null; compact?: boolean }) {
-  const market = asset.provider === 'prestocks' ? asset.marketPrice : jupiterPrice;
-  const premium = calculatePremiumPercent(market, asset.markPrice);
-  const gap = calculatePremiumPercent(asset.impliedValuation, asset.markValuation);
-  const provider = providerNames[asset.provider];
-  return <div className="preipo-metrics small">
-    {!compact && <><h3>{asset.name}</h3><ProviderBadge provider={asset.provider} /><dl>
-      {asset.sector && <div><dt>Sector</dt><dd>{asset.sector}</dd></div>}
-      {present(asset.markValuation) && <div><dt>Mark Valuation</dt><dd>{dollars(asset.markValuation)}</dd></div>}
-      {present(asset.impliedValuation) && <div><dt>Implied Valuation</dt><dd>{dollars(asset.impliedValuation)}</dd></div>}
-      {gap !== null && <div><dt>Implied vs. Mark Valuation</dt><dd>{formatSignedPercent(gap)}</dd></div>}
-      {present(asset.holders) && <div><dt>Holders</dt><dd>{asset.holders.toLocaleString()}</dd></div>}
-    </dl></>}
-    <dl>
-      {present(asset.markPrice) && <div><dt>{provider} Mark Price</dt><dd>{dollars(asset.markPrice)}</dd></div>}
-      {asset.provider === 'prestocks' && present(asset.marketPrice) && <div><dt>PreStocks Token Price</dt><dd>{dollars(asset.marketPrice)}</dd></div>}
-      {present(jupiterPrice) && <div><dt>Jupiter Market Price</dt><dd>{dollars(jupiterPrice)}</dd></div>}
-    </dl>
-    {!present(jupiterPrice) && <p className="muted">Jupiter market price unavailable</p>}
-    <p className="muted">{asset.provider === 'tessera' ? 'Market vs. Tessera Mark' : 'Token Price vs. Mark'}<br /><strong>{formatPremium(premium)}</strong></p>
-    {!compact && <p className="muted">Private-market data provided by {provider}<br />On-chain market price via Jupiter</p>}
-  </div>;
+const price = (n: number | null | undefined) => present(n) ? dollars(n) : 'Unavailable';
+
+export function PreIpoMetricsTable({ assets, prices, registry, provider }: {
+  assets: PreIpoAsset[];
+  prices: Record<string, StockPrice>;
+  registry: StockRegistry | null;
+  provider: PreIpoAsset['provider'];
+}) {
+  return <>
+    <div className="private-market-table-scroll" role="region" aria-label="Private market token metrics" tabIndex={0}>
+      <table className="private-market-table">
+        <thead><tr>
+          <th scope="col">Token</th><th scope="col" className="market-sector">Sector</th>
+          <th scope="col">{providerNames[provider]} Mark Price</th>
+          {provider === 'prestocks' && <th scope="col">PreStocks Token Price</th>}
+          <th scope="col">Jupiter Market Price</th>
+          <th scope="col">{provider === 'tessera' ? 'Market vs. Tessera Mark' : 'Token Price vs. Mark'}</th>
+          <th scope="col">Mark Valuation</th><th scope="col">Implied Valuation</th>
+          <th scope="col">Implied vs. Mark Valuation</th><th scope="col">Holders</th>
+        </tr></thead>
+        <tbody>{assets.map(asset => {
+          const jupiterPrice = prices[asset.mint]?.usdPrice ?? null;
+          const market = asset.provider === 'prestocks' ? asset.marketPrice : jupiterPrice;
+          const premium = calculatePremiumPercent(market, asset.markPrice);
+          const gap = calculatePremiumPercent(asset.impliedValuation, asset.markValuation);
+          const stock = registry?.stocks.find(stock => stock.mint === asset.mint && stock.provider === asset.provider) ?? null;
+          return <tr key={asset.mint}>
+            <th scope="row"><div className="private-market-token"><TokenIcon stock={stock} name={asset.name} /><span>{asset.name}<small>{asset.symbol}</small></span></div></th>
+            <td className="market-sector">{asset.sector || '—'}</td>
+            <td>{price(asset.markPrice)}</td>
+            {provider === 'prestocks' && <td>{price(asset.marketPrice)}</td>}
+            <td>{price(jupiterPrice)}</td><td>{formatPremium(premium)}</td>
+            <td>{price(asset.markValuation)}</td><td>{price(asset.impliedValuation)}</td>
+            <td>{formatSignedPercent(gap)}</td><td>{present(asset.holders) ? asset.holders.toLocaleString() : 'Unavailable'}</td>
+          </tr>;
+        })}</tbody>
+      </table>
+    </div>
+    <p className="small muted">Private-market data provided by {providerNames[provider]} · On-chain market price via Jupiter</p>
+  </>;
 }

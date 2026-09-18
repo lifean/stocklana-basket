@@ -2,7 +2,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { BasketAllocation } from './basket-allocation';
 import { BasketPurchase } from './basket-purchase';
-import { PreIpoMetrics } from './pre-ipo-metrics';
+import { PreIpoMetricsTable } from './pre-ipo-metrics';
 import { PreIpoNotice } from './pre-ipo-notice';
 import { ProviderBadge, providerNames } from './provider-badge';
 import { calculateBasketPremium, formatSignedPercent } from '@/lib/pre-ipo';
@@ -130,9 +130,9 @@ export function InvestmentForm({ basket }: { basket: Basket }) {
       return <div className="preview-leg" key={asset.symbol}><div><strong>{isPreIpo ? asset.displaySymbol ?? asset.stockSymbol : asset.symbol}</strong>{isPreIpo && <span className="muted small">{asset.weightBps / 100}% target allocation</span>}<span className="muted small">{loading ? 'Loading estimate…' : issue?.reason === 'ambiguous' ? 'Ambiguous stock symbol' : !stock ? 'Stock unavailable' : shares === null ? 'Price unavailable' : `≈ ${shares.toLocaleString(undefined, { maximumFractionDigits: Math.min(stock.decimals, 8) })} estimated tokens`}</span></div><strong>{formatUsdc(allocations[i])} <span className="muted small">USDC</span></strong></div>;
     })}</div><div className="preview-total"><strong>Total</strong><strong>{formatUsdc(preview)} USDC</strong></div><p className="muted small">Indicative estimates using current USD prices and 1 USDC ≈ $1. These are token units, not a swap quote; fees, slippage, and issuer share ratios are not included.</p></div> : null;
   const canReview = preview !== null && registry && !loading && (!dataError || basket.provider === 'tessera' || basket.provider === 'prestocks') && !registry.unavailable.some(s => basket.assets.some(a => a.symbol === s.symbol));
-  return <div className="basket-grid">
+  return <div className="basket-layout"><div className="basket-grid">
     <div className="basket-strategy"><BasketAllocation basket={basket} registry={registry ?? (loading ? undefined : null)} />
-      {isPreIpo && <details className="panel private-market-details"><summary>Private Market Data<span className="small muted">Prices, valuations & provider details</span></summary>{fetchedAt && <p className="small muted">Sponsor data updated <time dateTime={new Date(fetchedAt).toISOString()}>{new Date(fetchedAt).toLocaleTimeString()}</time> · Refresh may use the 60-second cache.</p>}{preIpoAssets.map(asset => <PreIpoMetrics key={asset.mint} asset={asset} jupiterPrice={prices[asset.mint]?.usdPrice ?? null} />)}<p className="small muted">Marks are reference values, not guaranteed fair value. Premium and valuation differences are informational, not expected returns.</p>{isPreIpo && <><p><ProviderBadge provider={basket.provider} powered /></p><div className="weighted-premium"><strong>{basket.provider === 'tessera' ? 'Basket vs. Tessera Mark' : 'Basket vs. Mark'}</strong><p>{formatSignedPercent(basket.provider === 'tessera' && weighted.coveredBps !== 10000 ? null : weighted.value)}</p><p className="small muted">{basket.provider === 'prestocks' ? 'Weighted difference between current PreStocks token prices and PreStocks mark prices.' : 'Weighted difference between Jupiter on-chain market prices and Tessera mark prices.'}</p>{weighted.coveredBps < 10000 && <p className="small muted">{basket.provider === 'tessera' ? 'Unavailable until all components have valid prices.' : `Partial data: ${weighted.coveredBps / 100}% of target allocation covered; remaining weights are not rescaled.`} Missing: {weighted.excludedSymbols.join(', ')}.</p>}</div></>}<PreIpoNotice /></details>}
+
     </div>
     <section className="panel investment-panel" aria-label="Basket investment" tabIndex={0}>
       <div className="investment-overview">{overview}</div>
@@ -141,5 +141,7 @@ export function InvestmentForm({ basket }: { basket: Basket }) {
         <div className="investment-actions"><button className="button primary full" type="submit" form={formId} disabled={executionStarted}>Preview Investment <span>→</span></button></div>
       </>}
     </section>
+  </div>
+      {isPreIpo && <section className="panel private-market-details" aria-label="Private Market Data"><h2>Private Market Data</h2><p className="small muted">Prices, valuations & provider details</p>{fetchedAt && <p className="small muted">Sponsor data updated <time dateTime={new Date(fetchedAt).toISOString()}>{new Date(fetchedAt).toLocaleTimeString()}</time> · Refresh may use the 60-second cache.</p>}<PreIpoMetricsTable assets={preIpoAssets} prices={prices} registry={registry} provider={basket.provider === 'tessera' ? 'tessera' : 'prestocks'} /><p className="small muted">Marks are reference values, not guaranteed fair value. Premium and valuation differences are informational, not expected returns.</p>{isPreIpo && <><p><ProviderBadge provider={basket.provider} powered /></p><div className="weighted-premium"><strong>{basket.provider === 'tessera' ? 'Basket vs. Tessera Mark' : 'Basket vs. Mark'}</strong><p>{formatSignedPercent(basket.provider === 'tessera' && weighted.coveredBps !== 10000 ? null : weighted.value)}</p><p className="small muted">{basket.provider === 'prestocks' ? 'Weighted difference between current PreStocks token prices and PreStocks mark prices.' : 'Weighted difference between Jupiter on-chain market prices and Tessera mark prices.'}</p>{weighted.coveredBps < 10000 && <p className="small muted">{basket.provider === 'tessera' ? 'Unavailable until all components have valid prices.' : `Partial data: ${weighted.coveredBps / 100}% of target allocation covered; remaining weights are not rescaled.`} Missing: {weighted.excludedSymbols.join(', ')}.</p>}</div></>}<PreIpoNotice /></section>}
   </div>;
 }

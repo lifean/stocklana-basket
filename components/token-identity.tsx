@@ -11,7 +11,7 @@ function imageUrl(value: string | null | undefined) {
   catch { return null; }
 }
 
-function TokenIcon({ stock, name }: { stock: StockAsset | null; name: string }) {
+export function TokenIcon({ stock, name }: { stock: StockAsset | null; name: string }) {
   const [failed, setFailed] = useState<string[]>([]);
   const src = [imageUrl(stock?.icon), imageUrl(stock?.preIpo?.image)].find(url => url && !failed.includes(url));
   return <span className="home-token-icon" aria-hidden="true">
